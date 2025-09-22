@@ -1,17 +1,17 @@
 <template>
   <!-- <div id="app"> -->
     <!-- <img alt="Vue logo" src="./assets/logo.png"> -->
-    <SurveyForm msg="Welcome to Your Vue.js App"/>
+    <SurveyForm_v2 msg="Welcome to Your Vue.js App"/>
   <!-- </div> -->
 </template>
 
 <script>
-import SurveyForm from './components/SurveyForm.vue'
+import SurveyForm_v2 from './components/SurveyForm.vue'
 
 export default {
   name: 'App',
   components: {
-    SurveyForm
+    SurveyForm_v2
   }
 }
 </script>

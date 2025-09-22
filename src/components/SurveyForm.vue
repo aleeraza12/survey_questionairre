@@ -1,231 +1,251 @@
 <template>
   <div class="therapeutic-container" :class="{ 'stoplight-survey': isStoplightSurvey }">
-    <!-- Auto-initialization trigger -->
-    <div v-if="!initialized" style="display: none;">{{ autoInit }}</div>
-    
-    <!-- Gentle Background Elements -->
-    <div class="floating-elements">
-      <div class="floating-circle circle-1"></div>
-      <div class="floating-circle circle-2"></div>
-      <div class="floating-circle circle-3"></div>
-    </div>
-
-    <!-- Loading State -->
-    <div v-if="loading" class="loading-container">
-      <div class="loading-dots">
-        <div class="dot"></div>
-        <div class="dot"></div>
-        <div class="dot"></div>
-      </div>
-      <h2 class="loading-title">Preparing Your Assessment</h2>
-      <p class="loading-text">Loading personalized questions for you...</p>
-    </div>
-
-    <!-- Error State -->
-    <div v-if="!loading && questions.length === 0" class="error-container">
-      <div class="error-icon">⚠️</div>
-      <h2 class="error-title">Unable to Load Assessment</h2>
-      <p class="error-message">We're having trouble loading the assessment questions. Please try refreshing the page or contact support if the problem persists.</p>
-      <button @click="fetchSurveyData" class="retry-button">
-        <span class="button-icon">🔄</span>
-        <span>Try Again</span>
+      <!-- Previous Button - Desktop/Laptop Only -->
+      <button 
+        v-if="!loading && !showResults && questions.length > 0 && currentStep > 0" 
+        @click="previousStep" 
+        class="previous-button-responsive"
+        title="Go to previous question"
+      >
+        <span class="button-icon">←</span>
+        <span>Previous</span>
       </button>
-    </div>
-
-    <!-- Main Content Wrapper for 2-column layout -->
-    <div v-if="!loading && !showResults && questions.length > 0" class="main-content-wrapper">
-      <!-- Left Column with Header -->
-      <div class="left-column">
-        <!-- Survey Configuration Dropdowns - Above left column on laptop screens -->
-        <div class="survey-config-container">
-          <div class="config-dropdowns">
-            <select v-model="selectedShift" class="config-dropdown" :class="{ 'required-field': !selectedShift }">
-              <option value="">Select Shift *</option>
-              <option value="morning">Morning Shift</option>
-              <option value="night">Night Shift</option>
-            </select>
-            
-            <select v-model="selectedLocation" @change="onDeviceSelection" class="config-dropdown" :class="{ 'required-field': !selectedLocation }" :disabled="loadingDevices">
-              <option value="">{{ loadingDevices ? 'Loading devices...' : 'Select Device *' }}</option>
-              <option v-for="device in stationDevices" :key="device.stationID" :value="device.customLabel1">
-                {{ device.customLabel1 }}
-              </option>
-            </select>
-          </div>
+      
+      <!-- Previous Button - Mobile/Tablet Only -->
+      <button 
+        v-if="!loading && !showResults && questions.length > 0 && currentStep > 0" 
+        @click="previousStep" 
+        class="previous-button-mobile-fixed"
+        title="Go to previous question"
+      >
+        <span class="button-icon">←</span>
+        <span>Previous</span>
+      </button>
+      
+      <!-- Auto-initialization trigger -->
+      <div v-if="!initialized" style="display: none;">{{ autoInit }}</div>
+      
+      <!-- Gentle Background Elements -->
+      <div class="floating-elements">
+        <div class="floating-circle circle-1"></div>
+        <div class="floating-circle circle-2"></div>
+        <div class="floating-circle circle-3"></div>
+      </div>
+  
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-container">
+        <div class="loading-dots">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
         </div>
-        <!-- Supportive Header -->
-        <div class="gentle-header">
-        <div class="breathing-icon">
-          <div class="breath-circle"></div>
-        </div>
-        
-        <h1 class="caring-title">{{ surveyData.surveyName || 'Patient Assessment' }}</h1>
-        <p class="supportive-message" style="display: none;">How are you today?</p>
-        <p class="encouragement">Take a moment to check in with yourself. Your feelings matter. 💙</p>
-        
-        <!-- Progress Section - Inside Header for 2-column layout -->
-        <div v-if="!loading && questions.length > 0" class="progress-section">
-        <!-- Circular Progress for Laptop -->
-        <div class="circular-progress-container">
-          <div class="circular-progress-wrapper">
-            <svg class="circular-progress" width="120" height="120" viewBox="0 0 120 120">
-              <defs>
-                <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-                  <stop offset="25%" style="stop-color:#764ba2;stop-opacity:1" />
-                  <stop offset="50%" style="stop-color:#f093fb;stop-opacity:1" />
-                  <stop offset="75%" style="stop-color:#f5576c;stop-opacity:1" />
-                  <stop offset="100%" style="stop-color:#4facfe;stop-opacity:1" />
-                </linearGradient>
-              </defs>
-              <circle 
-                class="progress-bg"
-                cx="60" 
-                cy="60" 
-                r="50" 
-                stroke-width="8"
-                fill="none"
-              />
-              <circle 
-                class="progress-circle"
-                cx="60" 
-                cy="60" 
-                r="50" 
-                stroke-width="8"
-                fill="none"
-                :stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 - (314.16 * progressPercentage / 100)"
-                stroke="url(#progressGradient)"
-              />
-            </svg>
-            <div class="circular-progress-content">
-              <div class="progress-percentage">{{ Math.round(progressPercentage) }}%</div>
-              <div class="progress-step">{{ currentStep + 1 }} / {{ totalSteps }}</div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Linear Progress for Mobile/Tablet -->
-        <div class="linear-progress-container">
-          <div class="progress-bar-header">
-            <span class="progress-text">Progress: {{ Math.round(progressPercentage) }}%</span>
-            <span class="step-counter">{{ currentStep + 1 }} / {{ totalSteps }}</span>
-          </div>
-          <div class="progress-bar-track">
-            <div 
-              class="progress-bar-fill" 
-              :style="{ width: progressPercentage + '%' }"
-            >
-              <div class="progress-bar-glow"></div>
-            </div>
-          </div>
-        </div>
-        </div>
-        </div>
+        <h2 class="loading-title">Preparing Your Assessment</h2>
+        <p class="loading-text">Loading personalized questions for you...</p>
+      </div>
+  
+      <!-- Error State -->
+      <div v-if="!loading && questions.length === 0" class="error-container">
+        <div class="error-icon">⚠️</div>
+        <h2 class="error-title">Unable to Load Assessment</h2>
+        <p class="error-message">We're having trouble loading the assessment questions. Please try refreshing the page or contact support if the problem persists.</p>
+        <button @click="fetchSurveyData" class="retry-button">
+          <span class="button-icon">🔄</span>
+          <span>Try Again</span>
+        </button>
       </div>
 
-      <!-- Right Column with Question Card -->
-      <div class="right-column">
-        <!-- Main Content Area -->
-        <div class="question-sanctuary">
-          <!-- Survey Configuration Dropdowns - For smaller screens -->
-          <div class="survey-config-container-mobile">
-            <div class="config-dropdowns">
-            <select v-model="selectedShift" class="config-dropdown" :class="{ 'required-field': !selectedShift }">
-              <option value="">Select Shift *</option>
-              <option value="morning">Morning Shift</option>
-              <option value="night">Night Shift</option>
-            </select>
-            
-            <select v-model="selectedLocation" @change="onDeviceSelection" class="config-dropdown" :class="{ 'required-field': !selectedLocation }" :disabled="loadingDevices">
-              <option value="">{{ loadingDevices ? 'Loading devices...' : 'Select Device *' }}</option>
-              <option v-for="device in stationDevices" :key="device.stationID" :value="device.customLabel1">
-                {{ device.customLabel1 }}
-              </option>
-            </select>
+      <!-- Main Content Wrapper for 2-column layout -->
+      <div v-if="!loading && !showResults && questions.length > 0" class="main-content-wrapper">
+
+        <!-- Enhanced Question Card for Laptop/Desktop -->
+        <div class="enhanced-question-card">
+          <!-- Survey Header with Progress -->
+          <div class="survey-header">
+            <div class="header-content">
+              <div class="survey-title-section">
+                <!-- Title Row with Rank Tag and Title -->
+                <div class="title-row">
+                  <!-- Rank Tag Chip -->
+                  <div v-if="currentQuestion" class="rank-tag-chip" :class="getQuestionLevelClass()">
+                    {{ getRankDisplayText() }}
+                  </div>
+                  <h1 class="survey-title">{{ surveyData.surveyName || 'Patient Assessment' }}</h1>
+                </div>
+                <p class="survey-subtitle">Take a moment to check in with yourself. Your feelings matter. 💙</p>
+              </div>
+              
+              <!-- Simple Progress Circle - Desktop Only -->
+              <div class="simple-progress-circle desktop-progress">
+                <svg width="70" height="70" viewBox="0 0 70 70">
+                  <circle 
+                    cx="35" 
+                    cy="35" 
+                    r="30" 
+                    stroke="#e9ecef"
+                    stroke-width="4"
+                    fill="none"
+                  />
+                  <circle 
+                    cx="35" 
+                    cy="35" 
+                    r="30" 
+                    stroke="#74b9ff"
+                    stroke-width="4"
+                    fill="none"
+                    stroke-linecap="round"
+                    :stroke-dasharray="188.5"
+                    :stroke-dashoffset="188.5 - (188.5 * progressPercentage / 100)"
+                    transform="rotate(-90 35 35)"
+                  />
+                </svg>
+                <div class="progress-text">
+                  <div class="progress-count">{{ getCurrentProgressDisplay() }}/{{ totalSteps }}</div>
+                  <div class="progress-percent">{{ Math.round(progressPercentage) }}%</div>
+                </div>
+              </div>
+              
+              <!-- Mobile Progress Circle -->
+              <div class="mobile-progress-circle">
+                <svg width="28" height="28" viewBox="0 0 28 28">
+                  <circle 
+                    cx="14" 
+                    cy="14" 
+                    r="10" 
+                    stroke="#e9ecef"
+                    stroke-width="1.5"
+                    fill="none"
+                  />
+                  <circle 
+                    cx="14" 
+                    cy="14" 
+                    r="10" 
+                    stroke="#74b9ff"
+                    stroke-width="1.5"
+                    fill="none"
+                    stroke-linecap="round"
+                    :stroke-dasharray="62.83"
+                    :stroke-dashoffset="62.83 - (62.83 * progressPercentage / 100)"
+                    transform="rotate(-90 14 14)"
+                  />
+                </svg>
+                <div class="mobile-progress-text">
+                  <div class="mobile-progress-count">{{ getCurrentProgressDisplay() }}/{{ totalSteps }}</div>
+                </div>
+              </div>
             </div>
           </div>
 
-      <!-- Progress Border Container -->
-      <div class="progress-border-container">
-        <!-- Question Content -->
-        <div 
-          class="question-cloud"
-          :style="getQuestionCloudStyle()"
-        >
-          <!-- Rank Tag Chip -->
-          <div v-if="currentQuestion" class="rank-tag-chip" :class="getQuestionLevelClass()">
-            {{ getRankDisplayText() }}
-          </div>
-          
-          <!-- Dynamic Question Display -->
-          <div v-if="currentQuestion" class="question-section">
-            <div class="question-header">
-              <h2 class="gentle-question" v-html="currentQuestion.text"></h2>
+          <!-- Survey Configuration Dropdowns -->
+          <div class="survey-config-section">
+            <div class="config-dropdowns">
+              <select v-model="selectedShift" class="config-dropdown" :class="{ 'required-field': !selectedShift }">
+                <option value="">Select Shift *</option>
+                <option value="morning">Morning Shift</option>
+                <option value="night">Night Shift</option>
+              </select>
+              
+              <select v-model="selectedLocation" @change="onDeviceSelection" class="config-dropdown" :class="{ 'required-field': !selectedLocation }" :disabled="loadingDevices">
+                <option value="">{{ loadingDevices ? 'Loading devices...' : 'Select Stations *' }}</option>
+                <option v-for="device in stationDevices" :key="device.stationID" :value="device.customLabel1">
+                  {{ device.customLabel1 }}
+                </option>
+              </select>
             </div>
-            <p class="question-description">Please select the option that best describes your current situation</p>
-            
-            <div class="answers-container">
-              <template v-for="answer in currentQuestion.answers">
-                <div 
-                  :key="answer.answerID"
-                  class="answer-option"
-                  :class="{ 
-                    'selected': selectedAnswers[currentQuestion.questionID] === answer.answerID,
-                    [`rank-${answer.rank}`]: true,
-                    ...getAnswerCSSClasses(answer)
-                  }"
-                  :style="getAnswerOptionStyle(answer)"
-                  :title="selectedAnswers[currentQuestion.questionID] === answer.answerID ? 'Click again to deselect' : 'Click to select'"
-                  @click="selectAnswer(currentQuestion.questionID, answer.answerID)"
-                >
-                  <div class="answer-content">
-                    <div class="answer-text">{{ answer.text }}</div>
-                    <div class="answer-rank">Level {{ answer.rank }}</div>
+          </div>
+
+          <!-- Main Content Area -->
+          <div class="question-sanctuary">
+            <!-- Progress Border Container -->
+            <div class="progress-border-container">
+              <!-- Question Content -->
+              <div 
+                class="question-cloud"
+                :style="getQuestionCloudStyle()"
+              >
+                <!-- Dynamic Question Display -->
+                <div v-if="currentQuestion" class="question-section">
+                  <div class="question-header">
+                    <h2 class="gentle-question" v-html="currentQuestion.text"></h2>
+                  </div>
+                  <p class="question-description">Please select the option that best describes your current situation</p>
+                  
+                  <div class="answers-container" :class="{ 'disabled-container': !selectedLocation }">
+                    <!-- Device selection message overlay -->
+                    <div v-if="!selectedLocation" class="device-selection-message">
+                      <div class="message-text">
+                        Please select a device first to answer the survey questions
+                      </div>
+                    </div>
+                    
+                    <template v-for="answer in currentQuestion.answers">
+                      <div 
+                        :key="answer.answerID"
+                        class="answer-option"
+                        :class="{ 
+                          'selected': isAnswerSelected(currentQuestion.questionID, answer.answerID),
+                          'checkbox-mode': currentQuestion.questionType === 2,
+                          'disabled': !selectedLocation,
+                          [`rank-${answer.rank}`]: true,
+                          ...getAnswerCSSClasses(answer)
+                        }"
+                        :style="getAnswerOptionStyle(answer)"
+                        @click="selectAnswer(currentQuestion.questionID, answer.answerID)"
+                      >
+                        <div class="answer-content">
+                          <!-- Checkbox for questionType 2 -->
+                          <div v-if="currentQuestion.questionType === 2" class="checkbox-container">
+                            <input 
+                              type="checkbox" 
+                              :checked="isAnswerSelected(currentQuestion.questionID, answer.answerID)"
+                              class="answer-checkbox"
+                            />
+                          </div>
+                          <div class="answer-text" v-html="answer.text"></div>
+                        </div>
+                      </div>
+                      
+                      <!-- Continue button for single select (questionType 1) -->
+                      <div 
+                        v-if="currentQuestion.questionType === 1 && selectedAnswers[currentQuestion.questionID] === answer.answerID && canProceed" 
+                        :key="`continue-${answer.answerID}`"
+                        class="continue-button-after-selected"
+                      >
+                        <button @click="nextStep" class="continue-button-dynamic">
+                          <span>{{ getNextButtonText() }}</span>
+                          <span class="nav-icon">🌟</span>
+                        </button>
+                      </div>
+                    </template>
+                    
+                    <!-- Continue button for multiple select (questionType 2) -->
+                    <div 
+                      v-if="currentQuestion.questionType === 2 && canProceed" 
+                      class="continue-button-after-selected"
+                    >
+                      <button @click="nextStep" class="continue-button-dynamic">
+                        <span>{{ getNextButtonText() }}</span>
+                        <span class="nav-icon">🌟</span>
+                      </button>
+                    </div>
+                    
                   </div>
                 </div>
                 
-                <!-- Continue button immediately after selected answer -->
-                <div 
-                  v-if="selectedAnswers[currentQuestion.questionID] === answer.answerID && canProceed" 
-                  :key="`continue-${answer.answerID}`"
-                  class="continue-button-after-selected"
-                >
-                  <button @click="nextStep" class="continue-button-dynamic">
-                    <span>{{ getNextButtonText() }}</span>
-                    <span class="nav-icon">🌟</span>
-                  </button>
-                </div>
-              </template>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Supportive Navigation (for tablet and mobile) -->
-      <div v-if="currentStep > 0 && !loading && !showResults" class="supportive-navigation">
-        <button 
-          @click="previousStep"
-          class="nav-cloud prev-cloud"
-        >
-          <span class="nav-icon">🌙</span>
-          <span>Previous</span>
-        </button>
-      </div>
       
-      <!-- Encouragement Message -->
-      <div class="encouragement-container">
-        <div class="encouragement-message">{{ getEncouragementMessage() }}</div>
-      </div>
-      </div>
-      </div>
-    </div>
+          
+        </div>
+      <!-- </div> -->
 
-    <!-- Results/Thank You Page -->
-    <div v-if="!loading && showResults" class="healing-results">
-      <div class="results-sanctuary">
-        <!-- Landing Page Content -->
-        <div v-if="currentLandingPage" class="landing-page-content" v-html="currentLandingPage.html"></div>
+      <!-- Results/Thank You Page -->
+      <div v-if="!loading && showResults" class="healing-results">
+        <div class="results-sanctuary">
+          <!-- Landing Page Content -->
+          <div v-if="currentLandingPage" class="landing-page-content" v-html="currentLandingPage.html"></div>
         
         <!-- Default Landing Page Content -->
         <div v-else-if="surveyData.defaultLandingPageID && landingPages.length > 0" class="landing-page-content" v-html="getDefaultLandingPage()"></div>
@@ -235,89 +255,94 @@
           <div class="celebration-header">
             <div class="celebration-icon">💙</div>
             <h2 class="celebration-title">Assessment Complete</h2>
-            <p class="celebration-message">Thank you for completing your assessment</p>
-          </div>
-          
-          <div class="results-garden">
-            <div class="level-badge" :class="getOverallLevelClass()">
-              <div class="badge-icon">{{ getOverallLevelEmoji() }}</div>
-              <div class="badge-text">{{ getOverallLevelText() }}</div>
-            </div>
-          </div>
-          
-          <div class="healing-message">
-            <div class="message-icon">💙</div>
-            <p>{{ getThankYouMessage() }}</p>
-          </div>
-          
-          <!-- Submission Status -->
-          <div class="submission-status">
-            <div v-if="submittingSurvey" class="submission-loading">
-              <div class="loading-spinner"></div>
-              <p>Submitting your responses...</p>
-            </div>
-            <div v-else-if="surveySubmitted" class="submission-success">
-              <div class="success-icon">✅</div>
-              <p>Your responses have been submitted successfully!</p>
-            </div>
-            <div v-else class="submission-pending">
-              <div class="pending-icon">⏳</div>
-              <p>Preparing to submit your responses...</p>
-            </div>
+            <p class="celebration-message">Thank you, your survey is submitted</p>
           </div>
         </div>
         
-        <div class="support-actions">
-          <button @click="resetAssessment" class="support-button restart-button">
+        <!-- Take Assessment Again Button - Always visible on results page -->
+        <div class="results-top-actions">
+          <button 
+            @click="refreshPage" 
+            class="support-button restart-button"
+          >
             <span class="button-icon">🔄</span>
             <span>Take Assessment Again</span>
           </button>
-          
-          <!-- Manual submission button (only show if not submitted and not currently submitting) -->
-          <button 
-            v-if="!surveySubmitted && !submittingSurvey" 
-            @click="submitSurveyData" 
-            class="support-button submit-button"
-            :disabled="submittingSurvey || !canSubmitSurvey"
-            :title="!canSubmitSurvey ? 'Please select both Shift and Location to submit' : ''"
-          >
-            <span class="button-icon">📤</span>
-            <span>{{ submittingSurvey ? 'Submitting...' : 'Submit Responses' }}</span>
-          </button>
         </div>
-        
-        <div class="final-encouragement">
-          <p>Remember: Your wellbeing matters. Take care of yourself. 💙</p>
-        </div>
-      </div>
-    </div>
 
-    <!-- Debug Button for Testing -->
-    <div v-if="!loading && !showResults && questions.length > 0" class="debug-button-container">
-      <div @click="showApiResponse" class="debug-button" title="Show API Response">
-        <div class="code-icon-circle">
-          <span class="code-brackets">{}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Debug Modal -->
-    <div v-if="showDebugModal" class="debug-modal" @click="closeDebugModal">
-      <div class="debug-modal-content" @click.stop>
-        <div class="debug-modal-header">
-          <h3>Parsed API Response - Survey ID: {{ surveyId }}</h3>
-          <div class="debug-header-controls">
-            <button @click="copyJson" class="debug-copy-btn" title="Copy JSON">Copy</button>
-            <button @click="closeDebugModal" class="debug-close-btn">×</button>
+        <!-- Submission Status - Now shows for both landing pages and default results -->
+        <div class="submission-status">
+          <div v-if="submittingSurvey" class="submission-loading">
+            <div class="loading-spinner"></div>
+            <p>Submitting your responses...</p>
+          </div>
+            <div v-else-if="surveySubmitted" class="submission-success">
+              <!-- <div class="success-icon">✅</div> -->
+              <!-- <p>Your responses have been submitted successfully!</p> -->
+              <div class="circular-timer-container">
+                <div class="circular-timer">
+                  <svg class="timer-svg" viewBox="0 0 100 100">
+                    <!-- Background circle -->
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#e9ecef"
+                      stroke-width="8"
+                    />
+                    <!-- Progress circle -->
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="45"
+                      fill="none"
+                      stroke="#74b9ff"
+                      stroke-width="8"
+                      stroke-linecap="round"
+                      :stroke-dasharray="circumference"
+                      :stroke-dashoffset="strokeDashoffset"
+                      transform="rotate(-90 50 50)"
+                      class="progress-circle"
+                    />
+                  </svg>
+                  <div class="timer-content">
+                    <div class="timer-number">{{ countdownTimer }}</div>
+                    <div class="timer-label">seconds</div>
+                  </div>
+                </div>
+                <!-- Flash Message -->
+                <div v-if="showFlashMessage" class="flash-message">
+                  <div class="flash-content" :class="flashMessageType">
+                    <div class="flash-icon">{{ flashMessageType === 'success' ? '✅' : '❌' }}</div>
+                    <div class="flash-text">
+                      <p class="flash-title">{{ flashMessageType === 'success' ? 'Survey Submitted!' : 'Survey Not Submitted!' }}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Timer Message (Hide when countdown reaches 0) -->
+                <div v-if="countdownTimer > 0" class="timer-message">
+                  <p>Page will auto-reload in {{ countdownTimer }} seconds</p>
+                </div>
+              </div>
+            </div>
+          <div v-else class="submission-pending">
+            <div class="pending-icon">⏳</div>
+            <p>Preparing to submit your responses...</p>
           </div>
         </div>
-        <div class="debug-modal-body">
-          <pre class="debug-json">{{ prettyApiResponse }}</pre>
+        
+        
+          <div class="final-encouragement">
+            <p>Remember: Your wellbeing matters. Take care of yourself. 💙</p>
+          </div>
         </div>
       </div>
-    </div>
   </div>
 </template>
+
+
 
 <script>
 export default {
@@ -344,9 +369,6 @@ export default {
       edges: [],
       accessibleQuestions: [],
       surveyId: 6,
-      showDebugModal: false,
-      prettyApiResponse: null,
-      rawApiResponse: null,
       initialized: false, // Add this to track if component has been initialized
       submittingSurvey: false, // Track survey submission status
       surveySubmitted: false, // Track if survey has been submitted
@@ -354,7 +376,12 @@ export default {
       selectedLocation: '', // Track selected location (now device name)
       stationDevices: [], // Store station devices from API
       loadingDevices: false, // Track loading state for devices
-      selectedDevice: null // Store the complete selected device object
+      selectedDevice: null, // Store the complete selected device object
+      countdownTimer: 20, // Countdown timer starting from 20 seconds
+      timerInterval: null, // Store the timer interval reference
+      showFlashMessage: false, // Control flash message visibility
+      flashMessageTimer: null, // Store flash message timer reference
+      flashMessageType: 'success' // 'success' or 'error'
     }
   },
   
@@ -363,6 +390,12 @@ export default {
     this.autoDetectShift();
     // Fetch station devices
     this.fetchStationDevices();
+  },
+  
+  
+  beforeDestroy() {
+    // Clean up timers when component is destroyed
+    this.stopTimer();
   },
   computed: {
     // Check if this is a conditional questionnaire
@@ -376,29 +409,19 @@ export default {
       if (this.questions.length === 0) return 0;
       
       if (this.isComplexQuestionnaire) {
-        // For conditional questionnaires, calculate based on current step position
+        // For conditional questionnaires, calculate based on answered questions
         const totalAccessibleQuestions = this.accessibleQuestions.length;
-        
-        // Progress should reflect the current step (0-based) + 1 if current question is answered
-        let currentProgress = this.currentStep;
-        if (this.currentQuestion && this.selectedAnswers[this.currentQuestion.questionID]) {
-          currentProgress += 1;
-        }
+        const answeredCount = this.getCurrentProgressDisplay();
         
         if (totalAccessibleQuestions === 0) return 0;
-        return Math.min((currentProgress / totalAccessibleQuestions) * 100, 100);
+        return Math.min((answeredCount / totalAccessibleQuestions) * 100, 100);
       } else {
-        // For simple questionnaires, calculate based on current step position
+        // For simple questionnaires, calculate based on answered questions
         const totalQuestions = this.questions.length;
-        
-        // Progress should reflect the current step (0-based) + 1 if current question is answered
-        let currentProgress = this.currentStep;
-        if (this.currentQuestion && this.selectedAnswers[this.currentQuestion.questionID]) {
-          currentProgress += 1;
-        }
+        const answeredCount = this.getCurrentProgressDisplay();
         
         if (totalQuestions === 0) return 0;
-        return Math.min((currentProgress / totalQuestions) * 100, 100);
+        return Math.min((answeredCount / totalQuestions) * 100, 100);
       }
     },
     
@@ -427,7 +450,20 @@ export default {
     
     canProceed() {
       if (!this.currentQuestion) return false;
-      return this.selectedAnswers[this.currentQuestion.questionID] !== undefined;
+      
+      // Don't show continue button if autoRollUp is 1 (auto-advance)
+      if (this.currentQuestion.autoRollUp === 1) {
+        return false;
+      }
+      
+      if (this.currentQuestion.questionType === 2) {
+        // Multiple select - check if at least one answer is selected
+        return this.selectedAnswers[this.currentQuestion.questionID] && 
+               this.selectedAnswers[this.currentQuestion.questionID].length > 0;
+      } else {
+        // Single select - check if an answer is selected
+        return this.selectedAnswers[this.currentQuestion.questionID] !== undefined;
+      }
     },
 
     // Detect if the survey is a stoplight survey
@@ -447,10 +483,102 @@ export default {
     // Check if survey can be submitted (both dropdowns filled)
     canSubmitSurvey() {
       return this.selectedShift && this.selectedLocation;
+    },
+    
+    // Circular timer calculations
+    circumference() {
+      return 2 * Math.PI * 45; // radius = 45
+    },
+    
+    strokeDashoffset() {
+      const progress = this.countdownTimer / 20; // 20 seconds total
+      return this.circumference * (1 - progress);
     }
   },
   
   methods: {
+    // Timer methods for countdown functionality
+    startTimer() {
+      this.countdownTimer = 20; // Reset to 20 seconds
+      
+      // Show success flash message immediately
+      this.flashMessageType = 'success';
+      this.showFlashMessage = true;
+      
+      // Hide flash message after 5 seconds
+      this.flashMessageTimer = setTimeout(() => {
+        this.showFlashMessage = false;
+      }, 5000);
+      
+      this.timerInterval = setInterval(() => {
+        this.countdownTimer--;
+        if (this.countdownTimer <= 0) {
+          this.stopTimer();
+          // Auto-reload the page after 20 seconds
+          console.log('Timer completed - reloading page...');
+          window.location.reload();
+        }
+      }, 1000);
+    },
+    
+    // Show error flash message
+    showErrorFlash() {
+      this.flashMessageType = 'error';
+      this.showFlashMessage = true;
+      
+      // Hide flash message after 5 seconds
+      this.flashMessageTimer = setTimeout(() => {
+        this.showFlashMessage = false;
+      }, 5000);
+    },
+    
+    stopTimer() {
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval);
+        this.timerInterval = null;
+      }
+      if (this.flashMessageTimer) {
+        clearTimeout(this.flashMessageTimer);
+        this.flashMessageTimer = null;
+      }
+    },
+    
+    resetTimer() {
+      this.stopTimer();
+      this.countdownTimer = 20;
+      this.showFlashMessage = false;
+    },
+    
+    // Get current progress display (only count answered questions)
+    getCurrentProgressDisplay() {
+      if (this.isComplexQuestionnaire) {
+        // Count how many questions have been answered
+        let answeredCount = 0;
+        for (let i = 0; i < this.currentStep; i++) {
+          const question = this.accessibleQuestions[i];
+          if (question && this.selectedAnswers[question.questionID]) {
+            answeredCount++;
+          }
+        }
+        return answeredCount;
+      } else {
+        // Count how many questions have been answered
+        let answeredCount = 0;
+        for (let i = 0; i < this.currentStep; i++) {
+          const question = this.questions[i];
+          if (question && this.selectedAnswers[question.questionID]) {
+            answeredCount++;
+          }
+        }
+        return answeredCount;
+      }
+    },
+
+    // Refresh the page
+    refreshPage() {
+      window.location.reload();
+    },
+
     // Auto-detect shift based on current system time
     autoDetectShift() {
       const currentHour = new Date().getHours();
@@ -492,6 +620,7 @@ export default {
         );
         
         console.log('Station devices loaded:', this.stationDevices);
+        
         
       } catch (error) {
         console.error('Error fetching station devices:', error);
@@ -552,8 +681,6 @@ export default {
         
         const data = await response.json();
         
-        // Store raw API response for debugging
-        this.rawApiResponse = data;
         
         // Check if the response is empty or contains no valid data
         if (!data || data.length === 0 || data[0] === "{}" || data[0] === "null") {
@@ -570,6 +697,12 @@ export default {
         
         this.surveyData = surveyData.survey;
         this.questions = surveyData.nodes.sort((a, b) => a.rank - b.rank);
+        
+        // Log autoRollUp and questionType information for debugging
+        console.log('Survey questions with autoRollUp and questionType status:');
+        this.questions.forEach(q => {
+          console.log(`Question ${q.questionID} (${q.text}): autoRollUp = ${q.autoRollUp}, questionType = ${q.questionType} (${q.questionType === 1 ? 'Single Select' : 'Multiple Select'})`);
+        });
         
         // Load conditional questionnaire data if present
         this.landingPages = surveyData.landingPages || [];
@@ -675,15 +808,60 @@ export default {
       return false;
     },
     
-    selectAnswer(questionId, answerId) {
-      // If the same answer is already selected, deselect it
-      if (this.selectedAnswers[questionId] === answerId) {
-        this.$delete(this.selectedAnswers, questionId);
-        console.log('Deselected answer for question:', questionId);
+    // Check if an answer is selected (works for both single and multiple select)
+    isAnswerSelected(questionId, answerId) {
+      const question = this.questions.find(q => q.questionID === questionId);
+      if (!question) return false;
+      
+      if (question.questionType === 2) {
+        // Multiple select - check if answerId is in the array
+        return this.selectedAnswers[questionId] && this.selectedAnswers[questionId].includes(answerId);
       } else {
-        // Select the new answer
-        this.$set(this.selectedAnswers, questionId, answerId);
-        console.log('Selected answer for question:', questionId, answerId);
+        // Single select - check if answerId matches
+        return this.selectedAnswers[questionId] === answerId;
+      }
+    },
+
+    selectAnswer(questionId, answerId) {
+      // Check if required fields are filled before allowing answer selection
+      if (!this.selectedLocation) {
+        alert('Please select a device/location first before answering the survey questions.');
+        return;
+      }
+      
+      const question = this.questions.find(q => q.questionID === questionId);
+      if (!question) return;
+      
+      if (question.questionType === 2) {
+        // Multiple select (checkbox) behavior
+        if (!this.selectedAnswers[questionId]) {
+          this.$set(this.selectedAnswers, questionId, []);
+        }
+        
+        const selectedAnswers = this.selectedAnswers[questionId];
+        const index = selectedAnswers.indexOf(answerId);
+        
+        if (index > -1) {
+          // Answer is already selected, remove it
+          selectedAnswers.splice(index, 1);
+          console.log('Deselected answer for question:', questionId, answerId);
+        } else {
+          // Answer is not selected, add it
+          selectedAnswers.push(answerId);
+          console.log('Selected answer for question:', questionId, answerId);
+        }
+        
+        // Update the reactive array
+        this.$set(this.selectedAnswers, questionId, [...selectedAnswers]);
+      } else {
+        // Single select behavior (existing logic)
+        if (this.selectedAnswers[questionId] === answerId) {
+          this.$delete(this.selectedAnswers, questionId);
+          console.log('Deselected answer for question:', questionId);
+        } else {
+          this.$set(this.selectedAnswers, questionId, answerId);
+          console.log('Selected answer for question:', questionId, answerId);
+        }
       }
       
       // If this question was previously completed, remove it from completed set
@@ -707,6 +885,28 @@ export default {
         // This is crucial if the new path is shorter than the previous one.
         if (this.currentStep >= this.accessibleQuestions.length) {
           this.currentStep = Math.max(0, this.accessibleQuestions.length - 1);
+        }
+      }
+      
+      // Check for autoRollUp functionality - auto-advance if autoRollUp is 1
+      const currentQuestion = this.questions.find(q => q.questionID === questionId);
+      if (currentQuestion && currentQuestion.autoRollUp === 1) {
+        // For single select, auto-advance immediately after selection
+        // For multiple select, auto-advance after any selection (user can select multiple but we advance after first)
+        if (currentQuestion.questionType === 1 && this.selectedAnswers[questionId]) {
+          console.log('AutoRollUp detected for single select question:', questionId, '- auto-advancing to next question');
+          this.$nextTick(() => {
+            setTimeout(() => {
+              this.nextStep();
+            }, 100);
+          });
+        } else if (currentQuestion.questionType === 2 && this.selectedAnswers[questionId] && this.selectedAnswers[questionId].length > 0) {
+          console.log('AutoRollUp detected for multiple select question:', questionId, '- auto-advancing to next question');
+          this.$nextTick(() => {
+            setTimeout(() => {
+              this.nextStep();
+            }, 100);
+          });
         }
       }
     },
@@ -820,14 +1020,40 @@ export default {
           
           // Check if current answer has a landing page
           if (currentQuestion) {
-            const selectedAnswerId = this.selectedAnswers[currentQuestion.questionID];
-            if (selectedAnswerId) {
-              const selectedAnswer = currentQuestion.answers.find(a => a.answerID === selectedAnswerId);
-              if (selectedAnswer && selectedAnswer.toLandingPageID && selectedAnswer.toLandingPageID !== -1) {
-                // Show landing page in results
-                const landingPage = this.landingPages.find(lp => lp.landingPageID === selectedAnswer.toLandingPageID);
-                if (landingPage) {
-                  this.currentLandingPage = landingPage;
+            // For checkbox questions, check all selected answers
+            if (currentQuestion.questionType === 2) {
+              const selectedAnswerIds = this.selectedAnswers[currentQuestion.questionID];
+              if (selectedAnswerIds && selectedAnswerIds.length > 0) {
+                // Check if any selected answer has a landing page
+                for (const answerId of selectedAnswerIds) {
+                  const selectedAnswer = currentQuestion.answers.find(a => a.answerID === answerId);
+                  if (selectedAnswer && selectedAnswer.toLandingPageID && selectedAnswer.toLandingPageID !== -1) {
+                    const landingPage = this.landingPages.find(lp => lp.landingPageID === selectedAnswer.toLandingPageID);
+                    if (landingPage) {
+                      this.currentLandingPage = landingPage;
+                      break; // Use the first landing page found
+                    }
+                  }
+                }
+                // If no answer-specific landing page, check if question has a default landing page
+                if (!this.currentLandingPage && currentQuestion.toLandingPageID && currentQuestion.toLandingPageID !== -1) {
+                  const landingPage = this.landingPages.find(lp => lp.landingPageID === currentQuestion.toLandingPageID);
+                  if (landingPage) {
+                    this.currentLandingPage = landingPage;
+                  }
+                }
+              }
+            } else {
+              // Single select logic (existing)
+              const selectedAnswerId = this.selectedAnswers[currentQuestion.questionID];
+              if (selectedAnswerId) {
+                const selectedAnswer = currentQuestion.answers.find(a => a.answerID === selectedAnswerId);
+                if (selectedAnswer && selectedAnswer.toLandingPageID && selectedAnswer.toLandingPageID !== -1) {
+                  // Show landing page in results
+                  const landingPage = this.landingPages.find(lp => lp.landingPageID === selectedAnswer.toLandingPageID);
+                  if (landingPage) {
+                    this.currentLandingPage = landingPage;
+                  }
                 }
               }
             }
@@ -871,6 +1097,15 @@ export default {
             return; // Stop progression to results page
           }
           
+          // Check if current question has a landing page (for simple questionnaires with landing pages)
+          const currentQuestion = this.questions[this.currentStep];
+          if (currentQuestion && currentQuestion.toLandingPageID && currentQuestion.toLandingPageID !== -1) {
+            const landingPage = this.landingPages.find(lp => lp.landingPageID === currentQuestion.toLandingPageID);
+            if (landingPage) {
+              this.currentLandingPage = landingPage;
+            }
+          }
+          
           console.log('Reached end of simple questionnaire - showing results');
           this.showResults = true;
           // Submit survey data when assessment is completed
@@ -912,29 +1147,7 @@ export default {
       return 'Continue';
     },
     
-    getOverallLevelClass() {
-      const averageRank = this.calculateAverageRank();
-      if (averageRank <= 1.5) return 'green';
-      if (averageRank <= 2.5) return 'yellow';
-      if (averageRank <= 3.5) return 'orange';
-      return 'red';
-    },
     
-    getOverallLevelEmoji() {
-      const averageRank = this.calculateAverageRank();
-      if (averageRank <= 1.5) return '✅';
-      if (averageRank <= 2.5) return '⚠️';
-      if (averageRank <= 3.5) return '🚨';
-      return '🚨';
-    },
-    
-    getOverallLevelText() {
-      const averageRank = this.calculateAverageRank();
-      if (averageRank <= 1.5) return 'Level I - Independent';
-      if (averageRank <= 2.5) return 'Level II - Moderate Care';
-      if (averageRank <= 3.5) return 'Level III - High Care';
-      return 'Level IV - Critical Care';
-    },
     
     calculateAverageRank() {
       const answeredQuestions = Object.keys(this.selectedAnswers);
@@ -957,18 +1170,6 @@ export default {
       return questionCount > 0 ? totalRank / questionCount : 0;
     },
     
-    getThankYouMessage() {
-      const averageRank = this.calculateAverageRank();
-      if (averageRank <= 1.5) {
-        return 'Thank you for completing your assessment. You appear to be functioning well and independently. Continue to maintain your current level of wellness.';
-      } else if (averageRank <= 2.5) {
-        return 'Thank you for your assessment. You may benefit from some additional support and monitoring. Please reach out if you need assistance.';
-      } else if (averageRank <= 3.5) {
-        return 'Thank you for your assessment. Your responses indicate you may need significant support. Please consider speaking with a healthcare provider.';
-      } else {
-        return 'Thank you for your assessment. Your responses suggest you may need immediate medical attention. Please contact your healthcare provider right away.';
-      }
-    },
     
     resetAssessment() {
       this.currentStep = 0;
@@ -1111,36 +1312,6 @@ export default {
       return ''; // Return empty string if no default landing page found
     },
 
-    showApiResponse() {
-      // Parse and format the raw API response
-      if (this.rawApiResponse && this.rawApiResponse.length > 0) {
-        try {
-          const parsedData = JSON.parse(this.rawApiResponse[0]);
-          this.prettyApiResponse = JSON.stringify(parsedData, null, 2);
-        } catch (error) {
-          this.prettyApiResponse = JSON.stringify(this.rawApiResponse, null, 2);
-        }
-      } else {
-        this.prettyApiResponse = "No API response available";
-      }
-      this.showDebugModal = true;
-    },
-
-    closeDebugModal() {
-      this.showDebugModal = false;
-      this.prettyApiResponse = null;
-    },
-
-    copyJson() {
-      if (this.prettyApiResponse) {
-        navigator.clipboard.writeText(this.prettyApiResponse).then(() => {
-          alert('JSON copied to clipboard!');
-        }).catch(err => {
-          console.error('Failed to copy JSON:', err);
-          alert('Failed to copy JSON to clipboard.');
-        });
-      }
-    },
 
     // Submit survey data to API
     async submitSurveyData() {
@@ -1203,6 +1374,8 @@ export default {
           SurveyAnswers: surveyAnswers,
           SurveyScore: surveyScore,
           SurveyScoreId: 21,
+          toLandingPageID: -1,
+          toQuestionID: -1,
           SurveyTotalScore: surveyTotalScore,
           StaffName: "",
           LoginName: this.selectedDevice ? this.selectedDevice.customField1 : "", // Use device IP address
@@ -1237,18 +1410,22 @@ export default {
         
         this.surveySubmitted = true;
         
+        // Show the end screen after successful submission
+        this.showResults = true;
+        
+        // Start the countdown timer
+        this.startTimer();
+        
         // Show success message to user
-        this.$nextTick(() => {
-          alert('Survey submitted successfully! Thank you for completing the assessment.');
-        });
+        // this.$nextTick(() => {
+        //   alert('Survey submitted successfully! Thank you for completing the assessment.');
+        // });
         
       } catch (error) {
         console.error('Error submitting survey data:', error);
         
-        // Show error message to user
-        this.$nextTick(() => {
-          alert('Failed to submit survey data. Please try again or contact support if the problem persists.');
-        });
+        // Show error flash message
+        this.showErrorFlash();
       } finally {
         this.submittingSurvey = false;
       }
@@ -1825,9 +2002,118 @@ export default {
   padding: 0;
   width: 100%;
   overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* Prevent horizontal overflow on all elements */
+* {
+  box-sizing: border-box;
+}
+
+.therapeutic-container * {
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 /* Mobile-specific full width fixes */
+@media (max-width: 767px) {
+  .therapeutic-container {
+    padding: 0 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .main-content-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 80px 0 20px 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .question-sanctuary {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .answers-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    gap: 6px !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  .answer-option {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 10px 12px !important;
+    box-sizing: border-box !important;
+    border-radius: 8px !important;
+    font-size: 0.8rem !important;
+    line-height: 1.3 !important;
+    min-height: 45px !important;
+    display: flex !important;
+    align-items: center !important;
+    transition: all 0.2s ease !important;
+  }
+  
+  .enhanced-question-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    border-radius: 12px !important;
+    overflow: visible !important;
+  }
+  
+  .survey-header {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 12px 14px !important;
+    box-sizing: border-box !important;
+    border-radius: 12px 12px 0 0 !important;
+  }
+  
+  .survey-title {
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    margin-bottom: 4px !important;
+  }
+  
+  .survey-subtitle {
+    font-size: 0.65rem;
+    line-height: 1.2;
+    opacity: 0.7;
+    font-weight: 300;
+  }
+  
+  .gentle-question {
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    margin-bottom: 6px !important;
+    color: #2d3436 !important;
+  }
+  
+  .question-description {
+    font-size: 0.8rem !important;
+    line-height: 1.3 !important;
+    color: #636e72 !important;
+    margin-bottom: 12px !important;
+  }
+}
+
+/* Additional mobile styles */
 @media (max-width: 767px) {
   .gentle-question,
   .question-description,
@@ -1837,7 +2123,163 @@ export default {
     max-width: 100% !important;
     display: block !important;
   }
+  
+  /* Enhanced mobile card styling */
+  .enhanced-question-card {
+    background: white !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+    border-radius: 12px !important;
+    overflow: visible !important;
+    margin-bottom: 4px !important;
+  }
+  
+  /* Better mobile progress indicator */
+  .mobile-progress-circle {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-radius: 50% !important;
+    padding: 4px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  /* Improved mobile header styling */
+  .survey-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    position: relative !important;
+  }
+  
+  .survey-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%);
+  }
+  
+  /* Better mobile answer options */
+  .answer-option {
+    background: white !important;
+    border: 2px solid transparent !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+    transition: all 0.3s ease !important;
+  }
+  
+  .answer-option:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+  }
+  
+  .answer-option.selected {
+    border-color: #74b9ff !important;
+    box-shadow: 0 4px 16px rgba(116, 185, 255, 0.3) !important;
+    transform: translateY(-2px) !important;
+  }
 }
+  
+  .survey-header {
+    padding: 6px 8px;
+    border-radius: 10px;
+    margin: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  
+  
+  .rank-tag-chip {
+    padding: 2px 4px;
+    font-size: 0.4rem;
+    align-self: center;
+    flex-shrink: 0;
+  }
+  
+  .title-row {
+    gap: 4px;
+    margin-bottom: 1px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+    display: flex !important;
+    align-items: center !important;
+    flex-direction: row !important;
+  }
+  
+  .header-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+  
+  .survey-title-section {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  
+  .survey-title {
+    font-size: 1rem;
+    line-height: 1.1;
+    font-weight: 600;
+    margin: 0;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+    align-self: center;
+  }
+  
+  .survey-subtitle {
+    font-size: 0.6rem;
+    margin: 2px 0 0 0;
+    line-height: 1.2;
+    opacity: 0.7;
+    font-weight: 300;
+  }
+  
+  .config-dropdown {
+    font-size: 0.7rem;
+    padding: 6px 8px;
+    min-width: 0;
+    max-width: calc(50% - 3px);
+    box-sizing: border-box;
+  }
+  
+  .enhanced-question-card {
+    margin: 0;
+    max-width: 100%;
+  }
+  
+  .survey-config-section {
+    margin: 0 4px;
+    padding: 0 4px;
+    width: calc(100% - 8px);
+    max-width: calc(100% - 8px);
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  
+  .config-dropdowns {
+    gap: 6px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .question-sanctuary {
+    margin: 0 4px;
+    padding: 8px 4px;
+    max-width: calc(100% - 8px);
+  }
+  
+  .answer-option {
+    margin: 4px 0;
+    padding: 8px 6px;
+    font-size: 0.7rem;
+    line-height: 1.3;
+  }
+
 .therapeutic-container {
   min-height: 100vh;
   width: 100%;
@@ -1908,93 +2350,6 @@ export default {
 }
 
 /* Header Styles */
-.gentle-header {
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 10px 20px;
-  text-align: center;
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  box-sizing: border-box;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-}
-
-.breathing-icon {
-  margin-bottom: 5px;
-}
-
-.breath-circle {
-  width: 80px;
-  height: 80px;
-  border: 4px solid rgba(255, 255, 255, 0.9);
-  border-radius: 50%;
-  margin: 0 auto;
-  animation: breathe 4s ease-in-out infinite;
-  box-shadow: 
-    0 0 30px rgba(255, 255, 255, 0.5),
-    0 0 60px rgba(116, 185, 255, 0.3),
-    inset 0 0 30px rgba(255, 255, 255, 0.2);
-  position: relative;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(10px);
-}
-
-.breath-circle::before {
-  content: '';
-  position: absolute;
-  top: -6px;
-  left: -6px;
-  right: -6px;
-  bottom: -6px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  animation: breathe 4s ease-in-out infinite reverse;
-}
-
-@keyframes breathe {
-  0%, 100% { 
-    transform: scale(1); 
-    opacity: 0.8; 
-    box-shadow: 
-      0 0 20px rgba(255, 255, 255, 0.3),
-      inset 0 0 20px rgba(255, 255, 255, 0.1);
-  }
-  50% { 
-    transform: scale(1.1); 
-    opacity: 1; 
-    box-shadow: 
-      0 0 30px rgba(255, 255, 255, 0.5),
-      inset 0 0 30px rgba(255, 255, 255, 0.2);
-  }
-}
-
-.caring-title {
-  font-size: 2.8rem;
-  color: white;
-  margin-bottom: 10px;
-  font-weight: 400;
-  text-shadow: 
-    0 4px 20px rgba(0,0,0,0.3),
-    0 2px 10px rgba(0,0,0,0.2);
-  letter-spacing: -0.5px;
-  line-height: 1.2;
-}
-
-.supportive-message {
-  font-size: 1.15rem;
-  color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 5px;
-  line-height: 1.6;
-}
-
-.encouragement {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 5px;
-  font-style: italic;
-}
 
 /* Progress Section */
 .progress-section {
@@ -2011,73 +2366,11 @@ export default {
   box-sizing: border-box;
 }
 
-.progress-bar-container {
-  margin-bottom: 10px;
-}
 
-.progress-bar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
 
-.progress-text {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1rem;
-  font-weight: 500;
-}
 
-.step-counter {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.9rem;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 4px 12px;
-  border-radius: 12px;
-}
 
-.progress-bar-track {
-  position: relative;
-  width: 100%;
-  height: 16px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 
-    inset 0 3px 8px rgba(0, 0, 0, 0.15),
-    0 2px 4px rgba(255, 255, 255, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(10px);
-}
 
-.progress-bar-fill {
-  position: relative;
-  height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
-  border-radius: 12px;
-  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-  box-shadow: 
-    0 4px 15px rgba(102, 126, 234, 0.5),
-    0 0 20px rgba(116, 185, 255, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-.progress-bar-glow {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 30px;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4));
-  animation: progressGlow 2s ease-in-out infinite;
-}
-
-@keyframes progressGlow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}
 
 /* Loading State */
 .loading-container {
@@ -2241,7 +2534,7 @@ export default {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.95));
   backdrop-filter: blur(20px);
   border-radius: 25px;
-  padding: 15px;
+  padding: 5px 15px 15px 15px;
   box-shadow: 
     0 25px 50px rgba(0, 0, 0, 0.12),
     0 0 0 1px rgba(255, 255, 255, 0.3),
@@ -2293,51 +2586,114 @@ export default {
   }
 }
 
-/* Rank Tag Chip - Responsive Positioning */
-.rank-tag-chip {
-  position: absolute;
+/* Mobile/Tablet Previous Button - Fixed Position Top Left */
+.previous-button-mobile-fixed {
+  position: fixed;
   top: 15px;
   left: 15px;
-  padding: 6px 10px;
-  border-radius: 15px;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 18px;
   font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.9));
+  color: #495057;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  z-index: 1000;
+}
+
+.previous-button-mobile-fixed:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.95));
+}
+
+.previous-button-mobile-fixed .button-icon {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Show mobile button on mobile/tablet, hide desktop button */
+@media (max-width: 1199px) {
+  .previous-button-mobile-fixed {
+    display: flex;
+  }
+}
+
+/* Smaller mobile screens - adjust button size */
+@media (max-width: 575px) {
+  .previous-button-mobile-fixed {
+    top: 12px;
+    left: 12px;
+    padding: 5px 10px;
+    font-size: 0.65rem;
+  }
+  
+  .previous-button-mobile-fixed .button-icon {
+    font-size: 0.7rem;
+  }
+}
+
+/* Extra small mobile screens */
+@media (max-width: 479px) {
+  .previous-button-mobile-fixed {
+    top: 10px;
+    left: 10px;
+    padding: 4px 8px;
+    font-size: 0.6rem;
+  }
+  
+  .previous-button-mobile-fixed .button-icon {
+    font-size: 0.65rem;
+  }
+}
+
+/* Hide mobile previous button on desktop */
+@media (min-width: 1200px) {
+  .previous-button-mobile-fixed {
+    display: none;
+  }
+}
+
+/* Rank Tag Chip - Small chip in title row */
+.rank-tag-chip {
+  position: relative;
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.5rem;
   font-weight: 600;
   color: white;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   z-index: 10;
   animation: tagChipSlideIn 0.4s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+  align-self: center;
 }
 
-/* Desktop/Laptop - Rank tag in top left of question card (consistent across all screens) */
+/* Desktop/Laptop - Rank tag styling */
 @media (min-width: 1200px) {
   .rank-tag-chip {
-    left: 20px;
-    top: 20px;
-    padding: 6px 12px;
-    font-size: 0.75rem;
+    padding: 5px 10px;
+    font-size: 0.55rem;
   }
 }
 
-.rank-tag-chip.level-1 {
-  background: linear-gradient(135deg, #00b894, #00cec9);
-}
-
-.rank-tag-chip.level-2 {
-  background: linear-gradient(135deg, #fdcb6e, #f39c12);
-}
-
-.rank-tag-chip.level-3 {
-  background: linear-gradient(135deg, #e17055, #d63031);
-}
-
-.rank-tag-chip.level-4 {
-  background: linear-gradient(135deg, #d63031, #c0392b);
-}
-
+.rank-tag-chip.level-1,
+.rank-tag-chip.level-2,
+.rank-tag-chip.level-3,
+.rank-tag-chip.level-4,
 .rank-tag-chip.level-0 {
-  background: linear-gradient(135deg, #636e72, #2d3436);
+  background: linear-gradient(135deg, #00b894, #00cec9);
 }
 
 @keyframes tagChipSlideIn {
@@ -2354,30 +2710,38 @@ export default {
 .gentle-question {
   font-size: 1.35rem;
   color: #2d3436 !important;
-  margin-bottom: 15px;
+  margin: 0;
   line-height: 1.5;
   font-weight: 400;
   text-align: center;
+  position: relative;
+  top: 0;
+  left: 0;
+  transform: none;
+  padding-left: 0;
 }
 
 .question-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 10px;
+  margin: 0;
 }
 
+
 .question-description {
-  color: #636e72;
-  margin-bottom: 15px;
+  color: #95a5a6;
+  margin: 0 0 5px 0;
   font-style: italic;
   text-align: center;
+  font-size: 0.85rem;
+  font-weight: 300;
 }
 
 /* Dynamic Question Section */
 .question-section {
   text-align: center;
-  padding: 10px;
+  padding: 0 10px 5px 10px;
   border-radius: 15px;
   transition: background-color 0.3s ease;
   min-height: 120px;
@@ -2387,7 +2751,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-width: 400px;
+  max-width: 600px;
   margin: 0 auto;
 }
 
@@ -2428,7 +2792,6 @@ export default {
     0 20px 40px rgba(116, 185, 255, 0.3),
     0 8px 16px rgba(0, 0, 0, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  transform: translateY(-4px) scale(1.02);
   position: relative;
   overflow: hidden;
   animation: selectedPulse 2s ease-in-out infinite;
@@ -2454,7 +2817,6 @@ export default {
 .answer-option.bg-orange-500.selected,
 .answer-option.bg-yellow-400.selected,
 .answer-option.bg-green-600.selected {
-  transform: translateY(-4px) scale(1.02);
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25);
 }
 
@@ -2466,7 +2828,6 @@ export default {
   color: white !important;
   border: 2px solid #dc2626 !important;
   animation: none !important;
-  transform: translateY(-4px) scale(1.02) !important;
   box-shadow: 0 15px 30px rgba(220, 38, 38, 0.3) !important;
 }
 
@@ -2477,7 +2838,6 @@ export default {
   color: black !important;
   border: 2px solid #f97316 !important;
   animation: none !important;
-  transform: translateY(-4px) scale(1.02) !important;
   box-shadow: 0 15px 30px rgba(249, 115, 22, 0.3) !important;
 }
 
@@ -2488,7 +2848,6 @@ export default {
   color: black !important;
   border: 2px solid #facc15 !important;
   animation: none !important;
-  transform: translateY(-4px) scale(1.02) !important;
   box-shadow: 0 15px 30px rgba(250, 204, 21, 0.3) !important;
 }
 
@@ -2499,7 +2858,6 @@ export default {
   color: white !important;
   border: 2px solid #16a34a !important;
   animation: none !important;
-  transform: translateY(-4px) scale(1.02) !important;
   box-shadow: 0 15px 30px rgba(22, 163, 74, 0.3) !important;
 }
 
@@ -2738,7 +3096,6 @@ export default {
 .answer-option.bg-orange-500.selected,
 .answer-option.bg-yellow-400.selected,
 .answer-option.bg-green-600.selected {
-  transform: translateY(-4px) scale(1.02);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
 }
 
@@ -2757,41 +3114,7 @@ export default {
   line-height: 1.3;
 }
 
-.answer-rank {
-  font-size: 0.85rem;
-  color: #6b7280;
-  font-weight: 600;
-  background: rgba(116, 185, 255, 0.1);
-  padding: 3px 6px;
-  border-radius: 8px;
-  display: inline-block;
-}
 
-/* Dynamic rank styling based on answer rank */
-.answer-option.rank-1 .answer-rank {
-  background: rgba(0, 184, 148, 0.1);
-  color: #00b894;
-}
-
-.answer-option.rank-2 .answer-rank {
-  background: rgba(253, 203, 110, 0.1);
-  color: #f39c12;
-}
-
-.answer-option.rank-3 .answer-rank {
-  background: rgba(225, 112, 85, 0.1);
-  color: #e17055;
-}
-
-.answer-option.rank-4 .answer-rank {
-  background: rgba(214, 48, 49, 0.1);
-  color: #d63031;
-}
-
-.answer-option.rank-0 .answer-rank {
-  background: rgba(99, 110, 114, 0.1);
-  color: #636e72;
-}
 
 @keyframes checkmarkPulse {
   0% {
@@ -2818,6 +3141,38 @@ export default {
   border-radius: 0 0 30px 30px;
   margin: 0 20px;
   gap: 20px;
+}
+
+.nav-cloud {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 18px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  background: linear-gradient(135deg, #ffffff, #f8f9ff);
+  color: #2d3436;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.nav-cloud:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+.nav-cloud:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.nav-cloud:disabled:hover {
+  transform: none;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
 .encouragement-container {
@@ -2883,6 +3238,27 @@ export default {
   padding: 20px 0;
 }
 
+/* Mobile: Ensure results page covers entire screen */
+@media (max-width: 768px) {
+  .healing-results {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 9999 !important;
+    background: rgba(0,0,0,0.9) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  /* Ensure therapeutic container is positioned relative for absolute positioning to work */
+  .therapeutic-container {
+    position: relative !important;
+  }
+}
+
 .results-sanctuary {
   background: linear-gradient(135deg, #ffffff, #f8f9ff);
   padding: 40px;
@@ -2937,63 +3313,6 @@ export default {
   margin-bottom: 20px;
 }
 
-.results-garden {
-  margin: 30px 0;
-}
-
-.level-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 15px;
-  padding: 20px 30px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-
-.level-badge.green {
-  background: linear-gradient(135deg, rgba(0, 184, 148, 0.1), rgba(0, 206, 201, 0.1));
-  border-color: rgba(0, 184, 148, 0.3);
-}
-
-.level-badge.yellow {
-  background: linear-gradient(135deg, rgba(253, 203, 110, 0.1), rgba(243, 156, 18, 0.1));
-  border-color: rgba(253, 203, 110, 0.3);
-}
-
-.level-badge.orange {
-  background: linear-gradient(135deg, rgba(225, 112, 85, 0.1), rgba(214, 48, 49, 0.1));
-  border-color: rgba(225, 112, 85, 0.3);
-}
-
-.level-badge.red {
-  background: linear-gradient(135deg, rgba(214, 48, 49, 0.1), rgba(192, 57, 43, 0.1));
-  border-color: rgba(214, 48, 49, 0.3);
-}
-
-.badge-icon {
-  font-size: 2.5rem;
-}
-
-.badge-text {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #2d3436;
-}
-
-.healing-message {
-  margin: 30px 0;
-  padding: 25px;
-  background: linear-gradient(135deg, rgba(116, 185, 255, 0.1), rgba(9, 132, 227, 0.1));
-  border-radius: 15px;
-  border: 1px solid rgba(116, 185, 255, 0.2);
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
 
 .message-icon {
   font-size: 2rem;
@@ -3156,15 +3475,12 @@ export default {
   font-weight: 500;
 }
 
-.stoplight-survey .answer-rank {
-  display: none;
-}
 
 /* Dynamic Continue button styling */
 .continue-button-after-selected {
   display: flex;
   justify-content: flex-end;
-  margin: 10px 0;
+  margin: 2px 0;
   padding-right: 15px;
   animation: slideInUp 0.3s ease-out;
 }
@@ -3188,6 +3504,34 @@ export default {
 .continue-button-dynamic:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+}
+
+/* Checkbox styling for multiple select questions */
+.checkbox-mode {
+  position: relative;
+}
+
+.checkbox-container {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.answer-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.checkbox-mode .answer-content {
+  padding-left: 50px;
+}
+
+.checkbox-mode .answer-text {
+  margin-left: 0;
 }
 
 @keyframes slideInUp {
@@ -3216,9 +3560,9 @@ export default {
     align-items: center;
     justify-content: center;
     gap: 20px;
-    padding: 30px 40px;
-    max-width: 1700px;
-    margin: 0 auto;
+    padding: 0;
+    max-width: 100%;
+    margin: 0;
     min-height: 100vh;
     overflow: hidden;
     position: relative;
@@ -3239,37 +3583,6 @@ export default {
     z-index: 0;
   }
   
-  .survey-config-container {
-    width: 100%;
-    max-width: 450px;
-    margin: 0;
-    padding: 25px;
-    display: block; /* Show dropdowns on laptop screens */
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.15));
-    backdrop-filter: blur(20px);
-    border-radius: 25px;
-    border: 1px solid rgba(255, 255, 255, 0.4);
-    box-shadow: 
-      0 20px 40px rgba(0, 0, 0, 0.15),
-      0 0 0 1px rgba(255, 255, 255, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    z-index: 2;
-    align-self: flex-start;
-  }
-  
-  .survey-config-container:hover {
-    transform: translateY(-3px);
-    box-shadow: 
-      0 25px 50px rgba(0, 0, 0, 0.2),
-      0 0 0 1px rgba(255, 255, 255, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  }
-  
-  .survey-config-container-mobile {
-    display: none; /* Hide mobile dropdowns on laptop screens */
-  }
   
   .config-dropdowns {
     justify-content: center;
@@ -3288,7 +3601,7 @@ export default {
     font-weight: 500;
     color: #2d3436;
     backdrop-filter: blur(20px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background, border-color, transform, box-shadow, color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
     outline: none;
     box-shadow: 
@@ -3305,6 +3618,7 @@ export default {
     background-position: right 12px center !important;
     background-size: 16px 16px !important;
     padding-right: 40px;
+    transition-property: background, border-color, transform, box-shadow, color !important;
   }
   
   .config-dropdown:hover {
@@ -3348,23 +3662,6 @@ export default {
     margin-top: 0;
   }
   
-  .left-column {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 0 0 450px;
-    gap: 25px;
-    position: relative;
-    align-self: flex-start;
-  }
-  
-  .right-column {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 0 0 auto;
-    align-self: flex-start;
-  }
   
   .gentle-header {
     max-width: 100%;
@@ -3605,6 +3902,10 @@ export default {
     padding: 0 10px;
   }
   
+  .main-content-wrapper {
+    padding: 100px 0 30px 0 !important;
+  }
+  
   .gentle-header {
     padding: 10px 15px;
     max-width: 100%;
@@ -3634,7 +3935,7 @@ export default {
   }
   
   .question-cloud {
-    padding: 20px 18px;
+    padding: 5px 18px 20px 18px;
     min-height: 320px;
   }
   
@@ -3683,17 +3984,17 @@ export default {
     font-size: 1.8rem;
   }
   
-  .debug-button {
-    bottom: 15px;
-    right: 15px;
-  }
 }
 
 /* Tablet Portrait (576px to 767px) - Balanced Spacing */
 @media (max-width: 767px) and (min-width: 576px) {
   .therapeutic-container {
-    padding: 0 12px;
+    padding: 0 12px 0 12px;
     min-height: 100vh;
+  }
+  
+  .main-content-wrapper {
+    padding: 90px 0 20px 0 !important;
   }
   
   .floating-elements {
@@ -3739,25 +4040,8 @@ export default {
     margin-right: 12px;
   }
   
-  .progress-bar-header {
-    flex-direction: row;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 8px;
-  }
   
-  .progress-text {
-    font-size: 0.9rem;
-  }
   
-  .step-counter {
-    font-size: 0.8rem;
-    padding: 3px 6px;
-  }
-  
-  .progress-bar-track {
-    height: 6px;
-  }
   
   .question-sanctuary {
     max-width: 100%;
@@ -3769,35 +4053,34 @@ export default {
   }
   
   .question-cloud {
-    padding: 16px 20px;
+    padding: 5px 20px 16px 20px;
     min-height: 320px;
     border-radius: 18px;
   }
   
   .rank-tag-chip {
-    top: 12px;
-    left: 12px;
     padding: 5px 10px;
-    font-size: 0.75rem;
+    font-size: 0.65rem;
   }
   
   .question-section {
-    padding: 12px 8px;
+    padding: 0 8px 5px 8px;
     min-height: 240px;
   }
   
   .question-header {
-    margin-bottom: 12px;
+    margin: 0;
   }
   
   .gentle-question {
     font-size: 1.2rem;
-    margin-bottom: 8px;
+    margin: 0;
+    top: 0;
   }
   
   .question-description {
-    font-size: 0.9rem;
-    margin-bottom: 15px;
+    font-size: 0.8rem;
+    margin: 0 0 3px 0;
   }
   
   .answers-container {
@@ -3818,10 +4101,6 @@ export default {
     line-height: 1.3;
   }
   
-  .answer-rank {
-    font-size: 0.75rem;
-    padding: 3px 6px;
-  }
   
   .continue-button-after-selected {
     margin: 12px 0;
@@ -3840,6 +4119,7 @@ export default {
     margin: 0 12px;
     border-radius: 0 0 18px 18px;
   }
+  
   
   .nav-cloud {
     padding: 10px 16px;
@@ -3897,24 +4177,6 @@ export default {
     margin-bottom: 12px;
   }
   
-  .level-badge {
-    padding: 12px 15px;
-    gap: 8px;
-  }
-  
-  .badge-icon {
-    font-size: 1.8rem;
-  }
-  
-  .badge-text {
-    font-size: 0.9rem;
-  }
-  
-  .healing-message {
-    margin: 15px 0;
-    padding: 12px;
-    gap: 8px;
-  }
   
   .message-icon {
     font-size: 1.4rem;
@@ -3976,34 +4238,81 @@ export default {
     font-size: 0.8rem;
   }
   
-  .debug-button {
-    bottom: 8px;
-    right: 8px;
-  }
-  
-  .debug-modal-header {
-    padding: 4px 8px;
-  }
-  
-  .debug-modal-header h3 {
-    font-size: 0.8rem;
-  }
-  
-  .debug-modal-body {
-    padding: 8px;
-  }
-  
-  .debug-json {
-    padding: 8px;
-    font-size: 10px;
-  }
 }
 
 /* Mobile Landscape (480px to 575px) - Balanced Spacing */
 @media (max-width: 575px) and (min-width: 480px) {
   .therapeutic-container {
-    padding: 0 8px;
+    padding: 0 7px !important;
     min-height: 100vh;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  .main-content-wrapper {
+    padding: 85px 0 20px 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .question-sanctuary {
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .enhanced-question-card {
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .survey-header {
+    padding: 11px 12px !important;
+    box-sizing: border-box !important;
+  }
+  
+  .answer-option {
+    padding: 9px 12px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    min-height: 42px !important;
+    font-size: 0.78rem !important;
+  }
+  
+  .survey-title {
+    font-size: 1.05rem !important;
+  }
+  
+  .gentle-question {
+    font-size: 1.05rem !important;
+  }
+  
+  .config-dropdown {
+    padding: 7px 9px !important;
+    font-size: 0.78rem !important;
+    min-height: 38px !important;
+    min-width: 0 !important;
+    max-width: calc(50% - 2.5px) !important;
+    box-sizing: border-box !important;
+  }
+  
+  .survey-config-section {
+    padding: 0 7px !important;
+    margin-bottom: 7px !important;
+  }
+  
+  .config-dropdowns {
+    gap: 5px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  .answers-container {
+    gap: 5px !important;
+  }
+  
+  .question-description {
+    margin-bottom: 10px !important;
   }
   
   .gentle-header {
@@ -4039,22 +4348,6 @@ export default {
     margin-right: 8px;
   }
   
-  .progress-bar-header {
-    margin-bottom: 6px;
-  }
-  
-  .progress-text {
-    font-size: 0.8rem;
-  }
-  
-  .step-counter {
-    font-size: 0.75rem;
-    padding: 2px 5px;
-  }
-  
-  .progress-bar-track {
-    height: 5px;
-  }
   
   .question-sanctuary {
     margin: 0 auto 12px;
@@ -4071,7 +4364,7 @@ export default {
   }
   
   .question-cloud {
-    padding: 12px 15px;
+    padding: 3px 15px 12px 15px;
     min-height: 280px;
     border-radius: 12px;
     flex: 1;
@@ -4080,32 +4373,31 @@ export default {
   }
   
   .rank-tag-chip {
-    top: 10px;
-    left: 10px;
     padding: 4px 8px;
-    font-size: 0.7rem;
+    font-size: 0.6rem;
   }
   
   .question-section {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 10px 6px;
+    padding: 0 6px 5px 6px;
     min-height: 200px;
   }
   
   .question-header {
-    margin-bottom: 10px;
+    margin: 0;
   }
   
   .gentle-question {
     font-size: 1.1rem;
-    margin-bottom: 6px;
+    margin: 0;
+    top: 0;
   }
   
   .question-description {
-    font-size: 0.8rem;
-    margin-bottom: 12px;
+    font-size: 0.75rem;
+    margin: 0 0 2px 0;
   }
   
   .answers-container {
@@ -4130,10 +4422,6 @@ export default {
     line-height: 1.2;
   }
   
-  .answer-rank {
-    font-size: 0.7rem;
-    padding: 2px 5px;
-  }
   
   .continue-button-after-selected {
     margin: 8px 0;
@@ -4152,6 +4440,7 @@ export default {
     margin: 0 8px;
     border-radius: 0 0 12px 12px;
   }
+  
   
   .nav-cloud {
     padding: 6px 12px;
@@ -4208,24 +4497,6 @@ export default {
     margin-bottom: 8px;
   }
   
-  .level-badge {
-    padding: 8px 10px;
-    gap: 5px;
-  }
-  
-  .badge-icon {
-    font-size: 1.5rem;
-  }
-  
-  .badge-text {
-    font-size: 0.8rem;
-  }
-  
-  .healing-message {
-    margin: 10px 0;
-    padding: 8px;
-    gap: 5px;
-  }
   
   .message-icon {
     font-size: 1.2rem;
@@ -4291,8 +4562,76 @@ export default {
 /* Mobile Portrait (up to 479px) - Balanced Spacing */
 @media (max-width: 479px) {
   .therapeutic-container {
-    padding: 0 6px;
+    padding: 0 6px !important;
     min-height: 100vh;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  .main-content-wrapper {
+    padding: 80px 0 20px 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .question-sanctuary {
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .enhanced-question-card {
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+  
+  .survey-header {
+    padding: 10px 10px !important;
+    box-sizing: border-box !important;
+  }
+  
+  .answer-option {
+    padding: 8px 10px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    min-height: 40px !important;
+    font-size: 0.75rem !important;
+  }
+  
+  .survey-title {
+    font-size: 1.0rem !important;
+  }
+  
+  .gentle-question {
+    font-size: 1.0rem !important;
+  }
+  
+  .config-dropdown {
+    padding: 6px 8px !important;
+    font-size: 0.75rem !important;
+    min-height: 36px !important;
+    min-width: 0 !important;
+    max-width: calc(50% - 2px) !important;
+    box-sizing: border-box !important;
+  }
+  
+  .survey-config-section {
+    padding: 0 6px !important;
+    margin-bottom: 6px !important;
+  }
+  
+  .config-dropdowns {
+    gap: 4px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  .answers-container {
+    gap: 4px !important;
+  }
+  
+  .question-description {
+    margin-bottom: 8px !important;
   }
   
   .gentle-header {
@@ -4329,22 +4668,6 @@ export default {
     margin-right: 6px;
   }
   
-  .progress-bar-header {
-    margin-bottom: 4px;
-  }
-  
-  .progress-text {
-    font-size: 0.75rem;
-  }
-  
-  .step-counter {
-    font-size: 0.7rem;
-    padding: 2px 4px;
-  }
-  
-  .progress-bar-track {
-    height: 5px;
-  }
   
   .question-sanctuary {
     margin: 0 auto 10px;
@@ -4361,7 +4684,7 @@ export default {
   }
   
   .question-cloud {
-    padding: 10px 12px;
+    padding: 2px 12px 10px 12px;
     min-height: 250px;
     border-radius: 10px;
     flex: 1;
@@ -4370,32 +4693,31 @@ export default {
   }
   
   .rank-tag-chip {
-    top: 8px;
-    left: 8px;
     padding: 3px 6px;
-    font-size: 0.65rem;
+    font-size: 0.55rem;
   }
   
   .question-section {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 8px 4px;
+    padding: 0 4px 3px 4px;
     min-height: 160px;
   }
   
   .question-header {
-    margin-bottom: 8px;
+    margin: 0;
   }
   
   .gentle-question {
     font-size: 1rem;
-    margin-bottom: 4px;
+    margin: 0;
+    top: 0;
   }
   
   .question-description {
-    font-size: 0.75rem;
-    margin-bottom: 10px;
+    font-size: 0.7rem;
+    margin: 0 0 1px 0;
   }
   
   .answers-container {
@@ -4420,10 +4742,6 @@ export default {
     line-height: 1.2;
   }
   
-  .answer-rank {
-    font-size: 0.65rem;
-    padding: 2px 4px;
-  }
   
   .continue-button-after-selected {
     margin: 6px 0;
@@ -4442,6 +4760,7 @@ export default {
     margin: 0 6px;
     border-radius: 0 0 10px 10px;
   }
+  
   
   .nav-cloud {
     padding: 5px 10px;
@@ -4498,24 +4817,6 @@ export default {
     margin-bottom: 5px;
   }
   
-  .level-badge {
-    padding: 5px 8px;
-    gap: 3px;
-  }
-  
-  .badge-icon {
-    font-size: 1.2rem;
-  }
-  
-  .badge-text {
-    font-size: 0.7rem;
-  }
-  
-  .healing-message {
-    margin: 8px 0;
-    padding: 5px;
-    gap: 3px;
-  }
   
   .message-icon {
     font-size: 1rem;
@@ -4577,54 +4878,102 @@ export default {
     font-size: 0.6rem;
   }
   
-  .debug-button {
-    bottom: 5px;
-    right: 5px;
-  }
-  
-  .code-icon-circle {
-    width: 20px;
-    height: 20px;
-  }
-  
-  .code-brackets {
-    font-size: 10px;
-  }
-  
-  .debug-modal-header {
-    padding: 3px 6px;
-  }
-  
-  .debug-modal-header h3 {
-    font-size: 0.7rem;
-  }
-  
-  .debug-modal-body {
-    padding: 6px;
-  }
-  
-  .debug-json {
-    padding: 6px;
-    font-size: 8px;
-  }
+}
+
+/* Disabled state for answer options when location not selected */
+.answer-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.3);
+}
+
+.answer-option.disabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Device selection message overlay */
+.device-selection-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  text-align: center;
+}
+
+.device-selection-message .message-text {
+  background: rgba(255, 255, 255, 0.9);
+  color: #e74c3c;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Disabled container positioning */
+.answers-container.disabled-container {
+  position: relative;
 }
 
 /* Touch-friendly improvements for mobile devices */
 @media (hover: none) and (pointer: coarse) {
   .answer-option {
     min-height: 48px; /* Minimum touch target size */
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.05);
   }
   
+  .answer-option:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  }
+  
+  .config-dropdown {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .config-dropdown:active {
+    transform: scale(0.98);
+  }
+  
+  .gentle-question {
+    font-size: 1.1rem;
+    line-height: 1.4;
+  }
+  
+  .question-description {
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+  }
+  
+  /* Enhanced visual feedback for touch */
+  .answer-option.selected {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Additional touch-friendly styles */
+.device-selection-message .message-text {
+  font-size: 0.9rem;
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
   .nav-cloud,
   .support-button,
   .continue-button-dynamic,
   .retry-button {
     min-height: 44px; /* Minimum touch target size */
-  }
-  
-  .debug-button {
-    min-width: 44px;
-    min-height: 44px;
   }
   
   /* Remove hover effects on touch devices */
@@ -4640,10 +4989,6 @@ export default {
     transform: none;
     box-shadow: none;
   }
-  
-  .debug-button:hover {
-    transform: none;
-  }
 }
 
 /* High DPI displays */
@@ -4653,9 +4998,6 @@ export default {
     border-width: 1px; /* Thinner borders on high DPI */
   }
   
-  .progress-bar-track {
-    border-width: 1px;
-  }
 }
 
 /* Landscape orientation adjustments */
@@ -4693,7 +5035,7 @@ export default {
   }
   
   .question-cloud {
-    padding: 15px 20px;
+    padding: 3px 20px 15px 20px;
     min-height: 250px;
   }
   
@@ -4703,7 +5045,7 @@ export default {
   }
   
   .question-description {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     margin-bottom: 15px;
   }
   
@@ -4716,9 +5058,6 @@ export default {
     font-size: 0.8rem;
   }
   
-  .answer-rank {
-    font-size: 0.7rem;
-  }
   
   .results-sanctuary {
     padding: 20px 15px;
@@ -4741,167 +5080,345 @@ export default {
     margin-bottom: 12px;
   }
   
-  .level-badge {
-    padding: 12px 15px;
-  }
-  
-  .badge-icon {
-    font-size: 1.8rem;
-  }
-  
-  .badge-text {
-    font-size: 0.9rem;
-  }
 }
 
-/* Debug Button and Modal */
-.debug-button-container {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000;
-}
 
-.debug-button {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  cursor: pointer;
-  z-index: 1000;
-  transition: transform 0.3s ease;
-}
-
-.debug-button:hover {
-  transform: scale(1.1);
-}
-
-.debug-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 0;
-}
-
-.debug-modal-content {
-  width: 100%;
-  height: 100%;
-  background: white;
-  border-radius: 0;
-  box-shadow: none;
+/* Enhanced Question Card Styles */
+.enhanced-question-card {
+  max-width: 100%;
+  margin: 0;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e9ecef;
+  overflow: visible;
+  position: relative;
+  max-height: none;
   display: flex;
   flex-direction: column;
-  max-width: none;
-  max-height: none;
 }
 
-.debug-modal-header {
-  background: #2c3e50;
-  color: white;
-  padding: 8px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #34495e;
+/* Survey Configuration Section */
+.survey-config-section {
+  padding: 12px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
   flex-shrink: 0;
 }
 
-.debug-modal-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 500;
-}
-
-.debug-header-controls {
+.survey-config-section .config-dropdowns {
   display: flex;
-  gap: 10px;
-}
-
-.debug-copy-btn {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.3s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.code-icon-circle {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  display: flex;
-  align-items: center;
+  gap: 15px;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  margin: 12px 0;
+}
+
+.survey-config-section .config-dropdown {
+  padding: 8px 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: white;
+  font-size: 0.9rem;
+  color: #495057;
+  min-width: 160px;
   transition: all 0.3s ease;
 }
 
-.code-brackets {
-  font-size: 14px;
-  color: white;
-  font-weight: bold;
-  font-family: monospace;
+.survey-config-section .config-dropdown:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
 }
 
-.debug-copy-btn:hover .code-icon-circle {
-  transform: scale(1.1);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+.survey-config-section .config-dropdown.required-field {
+  border-color: #dc3545;
 }
 
-.debug-close-btn {
-  background: none;
-  border: none;
+.survey-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  padding: 18px 25px;
   color: white;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+  overflow: hidden;
+}
+
+/* Desktop - Full width header */
+@media (min-width: 1200px) {
+  .survey-header {
+    width: 100%;
+    border-radius: 20px;
+    padding: 15px 30px;
+  }
+  
+  .enhanced-question-card {
+    margin: 5px 0;
+    max-width: 100%;
+    border-radius: 20px;
+  }
+  
+  .therapeutic-container {
+    padding: 5px 30px;
+  }
+}
+
+.survey-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+  pointer-events: none;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.survey-title-section {
+  flex: 1;
+}
+
+.title-row {
   display: flex;
   align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.survey-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(45deg, #ffffff, #f0f8ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  align-self: center;
+}
+
+/* Desktop title and subtitle - ensure they override mobile styles */
+@media (min-width: 1200px) {
+  .survey-title {
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+  }
+  
+  .survey-subtitle {
+    font-size: 0.7rem !important;
+    margin: 0 !important;
+    opacity: 0.95 !important;
+    font-weight: 400 !important;
+    line-height: 1.3 !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+  }
+}
+
+/* Tablet subtitle - medium size */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .survey-subtitle {
+    font-size: 0.68rem !important;
+    margin: 0 !important;
+    opacity: 0.85 !important;
+    font-weight: 350 !important;
+    line-height: 1.3 !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+  }
+}
+
+.survey-subtitle {
+  font-size: 0.7rem;
+  margin: 0;
+  opacity: 0.95;
+  font-weight: 400;
+  line-height: 1.3;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Simple Progress Chip */
+.simple-progress-circle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  transition: background 0.3s ease;
+  width: 70px;
+  height: 70px;
+  margin-left: 15px;
+  flex-shrink: 0;
 }
 
-.debug-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+.simple-progress-circle svg {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
-.debug-modal-body {
-  padding: 20px;
+.simple-progress-circle .progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 2;
+}
+
+.simple-progress-circle .progress-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #2d3436;
+  line-height: 1;
+  margin-bottom: 1px;
+}
+
+.simple-progress-circle .progress-percent {
+  font-size: 0.6rem;
+  color: #636e72;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* Desktop Progress Circle - Show only on desktop */
+@media (min-width: 1025px) {
+  .desktop-progress {
+    display: block;
+  }
+  .mobile-progress-circle {
+    display: none !important;
+  }
+}
+
+/* Mobile Progress Circle - Show only on mobile/tablet */
+@media (max-width: 1024px) {
+  .desktop-progress {
+    display: none !important;
+  }
+  .mobile-progress-circle {
+    display: block;
+  }
+}
+
+/* Mobile Progress Circle Styles */
+.mobile-progress-circle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.mobile-progress-circle svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.mobile-progress-circle .mobile-progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 2;
+}
+
+.mobile-progress-circle .mobile-progress-count {
+  font-size: 0.35rem;
+  font-weight: 600;
+  color: #2d3436;
+  line-height: 1;
+}
+
+/* Enhanced Question Sanctuary */
+.enhanced-question-card .question-sanctuary {
+  padding: 15px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  max-width: none;
   flex: 1;
   overflow-y: auto;
-  background: #f8f9fa;
 }
 
-.debug-json {
-  background: white;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  color: #333;
-  white-space: pre-wrap;
+/* Compact spacing for enhanced card content */
+.enhanced-question-card .question-cloud {
+  margin-bottom: 15px;
+}
+
+.enhanced-question-card .question-text {
+  font-size: 1.3rem;
+  margin-bottom: 8px;
+}
+
+.enhanced-question-card .question-instruction {
+  font-size: 0.9rem;
+  margin-bottom: 15px;
+}
+
+.enhanced-question-card .answer-option {
+  margin-bottom: 12px;
+  padding: 15px 25px;
+  white-space: normal;
   word-wrap: break-word;
+  line-height: 1.4;
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
+  min-width: 0;
+  flex: 1;
+}
+
+.enhanced-question-card .continue-button {
+  margin-top: 15px;
+  padding: 10px 20px;
+}
+
+/* Enhanced card display */
+.enhanced-question-card {
+  display: block;
+  max-width: 100%;
   margin: 0;
-  height: 100%;
-  overflow-y: auto;
+}
+
+/* Center the main content wrapper */
+.main-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  min-height: auto;
+  gap: 20px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+  
+/* Supportive navigation */
+.supportive-navigation {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 25px 35px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 0 0 30px 30px;
+  margin: 0 20px;
+  gap: 20px;
 }
 
 /* Submission Status Styles */
@@ -4952,6 +5469,266 @@ export default {
   animation: successPulse 0.6s ease-out;
 }
 
+/* Circular Timer Styles */
+.circular-timer-container {
+  margin-top: 25px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+/* Results Top Actions - Take Assessment Again Button */
+.results-top-actions {
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Timer Top Actions - Take Assessment Again Button */
+.timer-top-actions {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.circular-timer {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timer-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.timer-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 2;
+}
+
+.timer-number {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2d3436;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.timer-label {
+  font-size: 0.7rem;
+  color: #636e72;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Flash Message Styles */
+.flash-message {
+  position: relative;
+  max-width: 320px;
+  margin: 0 auto;
+  animation: flashSlideIn 0.5s ease-out;
+}
+
+.flash-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.flash-content.success {
+  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  box-shadow: 0 4px 20px rgba(116, 185, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.flash-content.error {
+  background: linear-gradient(135deg, #e17055, #d63031);
+  box-shadow: 0 4px 20px rgba(214, 48, 49, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.flash-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: flashShimmer 2s infinite;
+}
+
+.flash-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  animation: flashPulse 1s ease-in-out infinite alternate;
+}
+
+.flash-text {
+  flex: 1;
+  color: white;
+}
+
+.flash-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.timer-message {
+  margin-top: 10px;
+  color: #636e72;
+  font-size: 0.9rem;
+}
+
+/* Flash Message Styles */
+.flash-message {
+  position: relative;
+  max-width: 320px;
+  margin: 0 auto;
+  animation: flashSlideIn 0.5s ease-out;
+}
+
+.flash-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.flash-content.success {
+  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  box-shadow: 0 4px 20px rgba(116, 185, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.flash-content.error {
+  background: linear-gradient(135deg, #e17055, #d63031);
+  box-shadow: 0 4px 20px rgba(214, 48, 49, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.flash-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: flashShimmer 2s infinite;
+}
+
+.flash-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  animation: flashPulse 1s ease-in-out infinite alternate;
+}
+
+.flash-text {
+  flex: 1;
+  color: white;
+}
+
+.flash-title {
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin: 0 0 4px 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.flash-subtitle {
+  font-size: 0.8rem;
+  margin: 0;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+/* Flash Message Animations */
+@keyframes flashSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes flashPulse {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes flashShimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Timer Message Styles */
+.timer-message {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.timer-message p {
+  font-size: 0.9rem;
+  color: #636e72;
+  margin: 0;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 20px;
+  border: 1px solid #dee2e6;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: inline-block;
+}
+
+/* Animation for the timer number */
+.timer-number {
+  animation: timerPulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes timerPulse {
+  0% { 
+    transform: scale(1);
+    color: #2d3436;
+  }
+  100% { 
+    transform: scale(1.05);
+    color: #74b9ff;
+  }
+}
+
 @keyframes successPulse {
   0% {
     transform: scale(0);
@@ -4978,37 +5755,23 @@ export default {
 
 
 /* Survey Configuration Dropdowns */
-.survey-config-container {
-  max-width: 100%;
-  margin: 0 0 15px 0;
-  padding: 0;
-  position: relative;
-  z-index: 10;
-  display: block; /* Show by default */
-}
-
-/* Mobile dropdown container - hidden by default, only shown on mobile */
-.survey-config-container-mobile {
-  max-width: 100%;
-  margin: 0 0 15px 0;
-  padding: 0;
-  position: relative;
-  z-index: 10;
-  display: none; /* Hidden by default */
-}
 
 .config-dropdowns {
   display: flex;
   gap: 15px;
   justify-content: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   flex-direction: row;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Basic dropdown styles - will be overridden by media queries */
 .config-dropdown {
   flex: 1;
-  max-width: 50%;
+  min-width: 0;
+  max-width: calc(50% - 7.5px);
   background: rgba(255, 255, 255, 0.9);
   border: 2px solid rgba(45, 52, 54, 0.2);
   border-radius: 10px;
@@ -5016,7 +5779,8 @@ export default {
   font-size: 0.85rem;
   color: #2d3436;
   backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
+  transition: background, border-color, transform, box-shadow, color 0.3s ease;
+  box-sizing: border-box;
   cursor: pointer;
   outline: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -5028,6 +5792,7 @@ export default {
   background-position: right 12px center !important;
   background-size: 16px 16px !important;
   padding-right: 35px;
+  transition-property: background, border-color, transform, box-shadow, color !important;
 }
 
 .config-dropdown:hover {
@@ -5097,18 +5862,63 @@ export default {
     inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
 }
 
+/* Prevent background-image transitions on all dropdown states */
+.config-dropdown,
+.config-dropdown:hover,
+.config-dropdown:focus,
+.config-dropdown.required-field,
+.config-dropdown.required-field:hover,
+.config-dropdown.required-field:focus {
+  transition: background, border-color, transform, box-shadow, color 0.3s ease !important;
+  transition-property: background, border-color, transform, box-shadow, color !important;
+}
+
 /* Mobile First - Ensure row layout on all mobile devices */
 @media (max-width: 1199px) {
-  .survey-config-container {
-    display: none; /* Hide main dropdowns on smaller screens */
+  .survey-config-section {
+    padding: 0 8px;
+    margin-bottom: 8px;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
   
-  .survey-config-container-mobile {
-    display: block; /* Show mobile dropdowns on smaller screens */
-    padding: 0 15px;
-    margin-bottom: 15px;
+  .config-dropdowns {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    gap: 6px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    margin: 10px 0 !important;
   }
   
+  .config-dropdown {
+    flex: 1 !important;
+    padding: 8px 10px !important;
+    font-size: 0.8rem !important;
+    border-radius: 8px !important;
+    border: 2px solid #e9ecef !important;
+    background: white !important;
+    min-height: 40px !important;
+    box-sizing: border-box !important;
+    transition: background, border-color, transform, box-shadow, color 0.2s ease !important;
+    transition-property: background, border-color, transform, box-shadow, color !important;
+  }
+  
+  .config-dropdown:focus {
+    border-color: #74b9ff !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(116, 185, 255, 0.1) !important;
+  }
+  
+  .config-dropdown.required-field {
+    border-color: #e74c3c !important;
+  }
+}
+
+/* Additional mobile configuration styles */
+@media (max-width: 1199px) {
   /* Show linear progress on smaller screens */
   .circular-progress-container {
     display: none;
@@ -5125,6 +5935,7 @@ export default {
     align-items: center;
     justify-content: space-between;
     flex-wrap: nowrap !important;
+    margin: 8px 0 !important;
   }
   
   .config-dropdown {
@@ -5136,7 +5947,7 @@ export default {
 }
 
 @media (max-width: 575px) {
-  .survey-config-container-mobile {
+  .survey-config-section {
     padding: 0 10px;
     margin-bottom: 12px;
   }
@@ -5147,6 +5958,7 @@ export default {
     gap: 6px;
     justify-content: space-between;
     flex-wrap: nowrap !important;
+    margin: 6px 0 !important;
   }
   
   .config-dropdown {
@@ -5158,7 +5970,7 @@ export default {
 }
 
 @media (max-width: 479px) {
-  .survey-config-container-mobile {
+  .survey-config-section {
     padding: 0 8px;
     margin-bottom: 10px;
   }
@@ -5169,6 +5981,7 @@ export default {
     gap: 4px;
     justify-content: space-between;
     flex-wrap: nowrap !important;
+    margin: 5px 0 !important;
   }
   
   .dropdown-group {

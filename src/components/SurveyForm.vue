@@ -62,6 +62,11 @@
           <!-- Survey Header with Progress -->
           <div class="survey-header">
             <div class="header-content">
+              <!-- SFA Logo Section -->
+              <div class="sfa-logo-section">
+                <img src="https://demo.galaxycreations.com/sfa/SFA-Logo_sm.png" alt="SFA Logo" class="sfa-logo" />
+              </div>
+              
               <div class="survey-title-section">
                 <!-- Title Row with Rank Tag and Title -->
                 <div class="title-row">
@@ -72,6 +77,11 @@
                   <h1 class="survey-title">{{ surveyData.surveyName || 'Patient Assessment' }}</h1>
                 </div>
                 <p class="survey-subtitle">Take a moment to check in with yourself. Your feelings matter. 💙</p>
+              </div>
+              
+              <!-- NJ Logo Section -->
+              <div class="nj-logo-section">
+                <img src="https://demo.galaxycreations.com/sfa/NJnew-solid-Black-Tag_sm.png" alt="NJ Logo" class="nj-logo" />
               </div>
               
               <!-- Simple Progress Circle - Desktop Only -->
@@ -138,15 +148,16 @@
           <!-- Survey Configuration Dropdowns -->
           <div class="survey-config-section">
             <div class="config-dropdowns">
-              <select v-model="selectedShift" class="config-dropdown" :class="{ 'required-field': !selectedShift }">
+              <select v-model="selectedShift" @change="onShiftChange" class="config-dropdown" :class="{ 'required-field': !selectedShift }" :disabled="loadingShifts">
                 <option value="">Select Shift *</option>
-                <option value="morning">Morning Shift</option>
-                <option value="night">Night Shift</option>
+                <option v-for="shift in shiftOptions" :key="shift.lookupID" :value="shift.lookupID">
+                  {{ shift.descr }}
+                </option>
               </select>
               
               <select v-model="selectedLocation" @change="onDeviceSelection" class="config-dropdown" :class="{ 'required-field': !selectedLocation }" :disabled="loadingDevices">
                 <option value="">{{ loadingDevices ? 'Loading devices...' : 'Select Stations *' }}</option>
-                <option v-for="device in stationDevices" :key="device.stationID" :value="device.customLabel1">
+                <option v-for="device in stationDevices" :key="device.stationID" :value="device.codeID">
                   {{ device.customLabel1 }}
                 </option>
               </select>
@@ -266,7 +277,7 @@
             class="support-button restart-button"
           >
             <span class="button-icon">🔄</span>
-            <span>Take Assessment Again</span>
+            <span>Restart Survey</span>
           </button>
         </div>
 
@@ -376,6 +387,9 @@ export default {
       selectedLocation: '', // Track selected location (now device name)
       stationDevices: [], // Store station devices from API
       loadingDevices: false, // Track loading state for devices
+      shiftOptions: [], // Store shift options from API
+      loadingShifts: false, // Track loading state for shifts
+      pendingAutoAdvance: false, // Track if we need to auto-advance after shift selection
       selectedDevice: null, // Store the complete selected device object
       countdownTimer: 20, // Countdown timer starting from 20 seconds
       timerInterval: null, // Store the timer interval reference
@@ -386,10 +400,10 @@ export default {
   },
   
   mounted() {
-    // Auto-detect shift based on current time
-    this.autoDetectShift();
     // Fetch station devices
     this.fetchStationDevices();
+    // Fetch shift options from API
+    this.fetchShiftOptions();
   },
   
   
@@ -579,18 +593,6 @@ export default {
       window.location.reload();
     },
 
-    // Auto-detect shift based on current system time
-    autoDetectShift() {
-      const currentHour = new Date().getHours();
-      
-      // Morning shift: 6 AM to 6 PM (6-17)
-      // Night shift: 6 PM to 6 AM (18-5)
-      if (currentHour >= 6 && currentHour < 18) {
-        this.selectedShift = 'morning';
-      } else {
-        this.selectedShift = 'night';
-      }
-    },
     
     // Initialize the component - call this from parent component
     initializeComponent() {
@@ -605,7 +607,7 @@ export default {
         this.loadingDevices = true;
         console.log('Fetching station devices...');
         
-        const response = await fetch('https://demo.galaxycreations.com/gwas/api/ReportDefaults/rptStationDevices/25');
+        const response = await fetch('https://demo.galaxycreations.com/gwas/api/ReportDefaults/rptStationDevices/80');
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -613,27 +615,27 @@ export default {
         
         const devices = await response.json();
         
-        // Filter out devices with empty customLabel1
+        // Filter out devices with empty customLabel1 or codeID
         this.stationDevices = devices.filter(device => 
           device.customLabel1 && 
-          device.customLabel1.trim() !== ''
+          device.customLabel1.trim() !== '' &&
+          device.codeID &&
+          device.codeID.trim() !== ''
         );
         
         console.log('Station devices loaded:', this.stationDevices);
+        
+        // Auto-select station based on sID query parameter
+        this.autoSelectStationFromURL();
         
         
       } catch (error) {
         console.error('Error fetching station devices:', error);
         
-        // Fallback to original location options if API fails
-        this.stationDevices = [
-          {
-            customLabel1: 'ICU',
-            customField1: '192.168.1.10',
-            stationID: '1020',
-            stationNameCommon: 'ICU'
-          }
-        ];
+       
+        
+        // Auto-select station based on sID query parameter (fallback case)
+        this.autoSelectStationFromURL();
         
         // Show error message to user
         this.$nextTick(() => {
@@ -643,13 +645,38 @@ export default {
         this.loadingDevices = false;
       }
     },
+
+    // Fetch shift options from API
+    async fetchShiftOptions() {
+      try {
+        this.loadingShifts = true;
+        console.log('Fetching shift options...');
+        
+        const response = await fetch('https://demo.galaxycreations.com/gwas/api/Lookups/9');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const shifts = await response.json();
+        this.shiftOptions = shifts;
+        
+        console.log('Shift options loaded:', this.shiftOptions);
+
+      } catch (error) {
+        console.error('Error fetching shift options:', error);
+        this.shiftOptions = [];
+      } finally {
+        this.loadingShifts = false;
+      }
+    },
     
     // Handle device selection from dropdown
     onDeviceSelection() {
       if (this.selectedLocation) {
-        // Find the selected device object
+        // Find the selected device object by codeID
         this.selectedDevice = this.stationDevices.find(device => 
-          device.customLabel1 === this.selectedLocation
+          device.codeID === this.selectedLocation
         );
         console.log('Selected device:', this.selectedDevice);
       } else {
@@ -660,13 +687,54 @@ export default {
     // Get survey ID from URL parameters
     getSurveyIdFromURL() {
       const urlParams = new URLSearchParams(window.location.search);
-      const surveyIdParam = urlParams.get('surveyId') || urlParams.get('id');
+      const surveyIdParam = urlParams.get('surveyId') || urlParams.get('surveyID') || urlParams.get('id');
       
       if (surveyIdParam) {
         this.surveyId = parseInt(surveyIdParam);
         console.log('Survey ID from URL:', this.surveyId);
       } else {
         console.log('No survey ID in URL, using default:', this.surveyId);
+      }
+    },
+    
+    // Get station ID from URL parameters
+    getStationIdFromURL() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const stationIdParam = urlParams.get('sID');
+      
+      if (stationIdParam) {
+        console.log('Station ID from URL:', stationIdParam);
+        return stationIdParam;
+      }
+      return null;
+    },
+    
+    // Auto-select station based on sID query parameter
+    autoSelectStationFromURL() {
+      const stationIdFromURL = this.getStationIdFromURL();
+      
+      if (stationIdFromURL && this.stationDevices.length > 0) {
+        // Find the device with matching codeID
+        const matchingDevice = this.stationDevices.find(device => 
+          device.codeID === stationIdFromURL
+        );
+        
+        if (matchingDevice) {
+          // Auto-select the matching station
+          this.selectedLocation = matchingDevice.codeID;
+          this.selectedDevice = matchingDevice;
+          console.log('Auto-selected station:', matchingDevice.customLabel1, 'with codeID:', matchingDevice.codeID);
+        } else {
+          console.log('No matching station found for sID:', stationIdFromURL);
+          // Reset to default state when no matching station found
+          this.selectedLocation = '';
+          this.selectedDevice = null;
+        }
+      } else {
+        // No sID parameter present, ensure default state
+        this.selectedLocation = '';
+        this.selectedDevice = null;
+        console.log('No sID parameter found, showing default station selection');
       }
     },
     
@@ -894,21 +962,61 @@ export default {
         // For single select, auto-advance immediately after selection
         // For multiple select, auto-advance after any selection (user can select multiple but we advance after first)
         if (currentQuestion.questionType === 1 && this.selectedAnswers[questionId]) {
-          console.log('AutoRollUp detected for single select question:', questionId, '- auto-advancing to next question');
-          this.$nextTick(() => {
-            setTimeout(() => {
-              this.nextStep();
-            }, 100);
-          });
+          console.log('AutoRollUp detected for single select question:', questionId, '- checking if can auto-advance');
+          this.handleAutoRollUpAdvance();
         } else if (currentQuestion.questionType === 2 && this.selectedAnswers[questionId] && this.selectedAnswers[questionId].length > 0) {
-          console.log('AutoRollUp detected for multiple select question:', questionId, '- auto-advancing to next question');
-          this.$nextTick(() => {
-            setTimeout(() => {
-              this.nextStep();
-            }, 100);
-          });
+          console.log('AutoRollUp detected for multiple select question:', questionId, '- checking if can auto-advance');
+          this.handleAutoRollUpAdvance();
         }
       }
+    },
+
+    // Handle autoRollUp advance with shift validation
+    handleAutoRollUpAdvance() {
+      // Check if shift is selected before auto-advancing
+      if (!this.selectedShift) {
+        console.log('AutoRollUp blocked - shift not selected, setting pending auto-advance');
+        this.pendingAutoAdvance = true;
+        const missingFields = [];
+        if (!this.selectedShift) missingFields.push('Shift');
+        if (!this.selectedLocation) missingFields.push('Location');
+        alert(`Please select ${missingFields.join(' and ')} to continue.`);
+        return;
+      }
+      
+      // If shift is selected, proceed with auto-advance
+      console.log('AutoRollUp proceeding - shift is selected');
+      this.pendingAutoAdvance = false;
+      this.$nextTick(() => {
+        setTimeout(() => {
+          this.nextStep(true); // Skip validation for autoRollUp
+        }, 100);
+      });
+    },
+
+    // Handle shift selection change
+    onShiftChange() {
+      // Check if there's a pending auto-advance when shift is selected
+      if (this.selectedShift && this.pendingAutoAdvance) {
+        console.log('Shift selected with pending auto-advance, proceeding to next step');
+        this.pendingAutoAdvance = false;
+        this.$nextTick(() => {
+          setTimeout(() => {
+            this.nextStep(true); // Skip validation for autoRollUp
+          }, 100);
+        });
+      }
+    },
+
+    // Get the description string for the selected shift
+    getSelectedShiftDescription() {
+      if (!this.selectedShift) return '';
+      
+      const selectedShiftOption = this.shiftOptions.find(shift => 
+        shift.lookupID === this.selectedShift
+      );
+      
+      return selectedShiftOption ? selectedShiftOption.descr : '';
     },
     
     // Handle conditional logic for complex questionnaires
@@ -969,8 +1077,8 @@ export default {
       }
     },
     
-    nextStep() {
-      console.log('nextStep called - isComplexQuestionnaire:', this.isComplexQuestionnaire);
+    nextStep(skipValidation = false) {
+      console.log('nextStep called - isComplexQuestionnaire:', this.isComplexQuestionnaire, 'skipValidation:', skipValidation);
       console.log('Current step:', this.currentStep);
       console.log('Accessible questions length:', this.accessibleQuestions.length);
       console.log('Questions length:', this.questions.length);
@@ -1059,8 +1167,8 @@ export default {
             }
           }
           
-          // Check if dropdowns are filled before showing results
-          if (!this.canSubmitSurvey) {
+          // Check if dropdowns are filled before showing results (skip if called from autoRollUp)
+          if (!skipValidation && !this.canSubmitSurvey) {
             console.log('Cannot proceed to results - missing required fields (Shift/Location)');
             // Show validation alert and prevent progression
             const missingFields = [];
@@ -1086,8 +1194,8 @@ export default {
         if (this.currentStep < this.questions.length - 1) {
           this.currentStep++;
         } else {
-          // Check if dropdowns are filled before showing results
-          if (!this.canSubmitSurvey) {
+          // Check if dropdowns are filled before showing results (skip if called from autoRollUp)
+          if (!skipValidation && !this.canSubmitSurvey) {
             console.log('Cannot proceed to results - missing required fields (Shift/Location)');
             // Show validation alert and prevent progression
             const missingFields = [];
@@ -1339,15 +1447,25 @@ export default {
         // Prepare survey answers in the required format: questionID::questionText::answerText::answerID::rank~
         const surveyAnswers = Object.keys(this.selectedAnswers)
           .map(questionId => {
-            const answerId = this.selectedAnswers[questionId];
+            const answerIds = this.selectedAnswers[questionId];
             const question = this.questions.find(q => q.questionID === parseInt(questionId));
-            const answer = question ? question.answers.find(a => a.answerID === answerId) : null;
             
-            if (question && answer) {
-              // Format: questionID::questionText::answerText::answerID::rank
-              return `rd${questionId}::${question.text}::${answer.text}::${answerId}::${answer.rank}`;
-            }
-            return null;
+            if (!question) return null;
+            
+            // Handle both single select and multiple select questions
+            const answerIdArray = Array.isArray(answerIds) ? answerIds : [answerIds];
+            
+            return answerIdArray
+              .map(answerId => {
+                const answer = question.answers.find(a => a.answerID === answerId);
+                if (answer) {
+                  // Format: questionID::questionText::answerText::answerID::rank
+                  return `rd${questionId}::${question.text}::${answer.text}::${answerId}::${answer.rank}`;
+                }
+                return null;
+              })
+              .filter(item => item !== null)
+              .join('~');
           })
           .filter(item => item !== null) // Remove any null items
           .join('~'); // Join with '~' separator
@@ -1369,7 +1487,7 @@ export default {
           VisitId: "100164109",
           StationId: this.selectedDevice ? parseInt(this.selectedDevice.stationID) : 1020,
           BedId: 151,
-          Shift: this.selectedShift, // Use the actual selected shift from dropdown
+          Shift: this.getSelectedShiftDescription(), // Use the description string from API
           SurveyId: this.surveyData.surveyID || this.surveyId,
           SurveyAnswers: surveyAnswers,
           SurveyScore: surveyScore,
@@ -1440,20 +1558,43 @@ export default {
           const enhancedNode = { ...question };
           
           // Add user selected answer information to each node
-          const selectedAnswerId = this.selectedAnswers[question.questionID];
-          if (selectedAnswerId) {
-            const selectedAnswer = question.answers.find(a => a.answerID === selectedAnswerId);
-            if (selectedAnswer) {
-              enhancedNode.userSelectedAnswer = {
-                answerID: selectedAnswer.answerID,
-                text: selectedAnswer.text,
-                rank: selectedAnswer.rank,
-                selectedAt: new Date().toISOString()
-              };
+          const selectedAnswerIds = this.selectedAnswers[question.questionID];
+          if (selectedAnswerIds) {
+            // Handle both single and multiple select as arrays
+            const answerIdArray = Array.isArray(selectedAnswerIds) ? selectedAnswerIds : [selectedAnswerIds];
+            
+            // Create userNavigatedTo object with navigation info (use first selected answer)
+            let userNavigatedTo = null;
+            if (answerIdArray.length > 0) {
+              const firstSelectedAnswer = question.answers.find(a => a.answerID === answerIdArray[0]);
+              if (firstSelectedAnswer) {
+                userNavigatedTo = {
+                  selectedAt: new Date().toISOString(),
+                  toLandingPageID: firstSelectedAnswer.toLandingPageID !== undefined ? firstSelectedAnswer.toLandingPageID : (question.toLandingPageID !== undefined ? question.toLandingPageID : -1),
+                  toQuestionID: firstSelectedAnswer.toQuestionID !== undefined ? firstSelectedAnswer.toQuestionID : (question.toQuestionID !== undefined ? question.toQuestionID : -1)
+                };
+              }
             }
+            
+            // Create Answers object with userSelectedAnswers and userNavigatedTo properties
+            enhancedNode.Answers = {
+              "userSelectedAnswers": answerIdArray.map(answerId => {
+                const selectedAnswer = question.answers.find(a => a.answerID === answerId);
+                if (selectedAnswer) {
+                  return {
+                    ...selectedAnswer // Copy all fields from the original answer
+                  };
+                }
+                return null;
+              }).filter(answer => answer !== null),
+              "userNavigatedTo": userNavigatedTo
+            };
           } else {
             // If no answer was selected, mark it as unanswered
-            enhancedNode.userSelectedAnswer = null;
+            enhancedNode.Answers = {
+              "userSelectedAnswers": [],
+              "userNavigatedTo": null
+            };
           }
           
           return enhancedNode;
@@ -1645,7 +1786,7 @@ export default {
           deviceLocation: this.selectedLocation,
           deviceId: this.selectedDevice ? this.selectedDevice.stationID : null,
           deviceIP: this.selectedDevice ? this.selectedDevice.customField1 : null,
-          shift: this.selectedShift,
+          shift: this.getSelectedShiftDescription(),
           
           // Survey metrics
           totalQuestions: totalQuestions, // Total questions in the questionnaire
@@ -5145,6 +5286,37 @@ export default {
   overflow: hidden;
 }
 
+/* Logo Section Styles */
+.sfa-logo-section, .nj-logo-section {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sfa-logo, .nj-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.sfa-logo:hover, .nj-logo:hover {
+  transform: scale(1.05);
+}
+
+/* Responsive logo adjustments */
+@media (max-width: 768px) {
+  .sfa-logo, .nj-logo {
+    height: 30px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sfa-logo, .nj-logo {
+    height: 25px;
+  }
+}
+
 /* Desktop - Full width header */
 @media (min-width: 1200px) {
   .survey-header {
@@ -5177,19 +5349,26 @@ export default {
 
 .header-content {
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
   position: relative;
   z-index: 2;
+  gap: 20px;
+  width: 100%;
 }
 
 .survey-title-section {
   flex: 1;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .title-row {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
   margin-bottom: 4px;
 }

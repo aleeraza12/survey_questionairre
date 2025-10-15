@@ -84,83 +84,64 @@
                 <img src="https://demo.galaxycreations.com/sfa/NJnew-solid-Black-Tag_sm.png" alt="NJ Logo" class="nj-logo" />
               </div>
               
-              <!-- Simple Progress Circle - Desktop Only -->
-              <div class="simple-progress-circle desktop-progress">
-                <svg width="70" height="70" viewBox="0 0 70 70">
-                  <circle 
-                    cx="35" 
-                    cy="35" 
-                    r="30" 
-                    stroke="#e9ecef"
-                    stroke-width="4"
-                    fill="none"
-                  />
-                  <circle 
-                    cx="35" 
-                    cy="35" 
-                    r="30" 
-                    stroke="#74b9ff"
-                    stroke-width="4"
-                    fill="none"
-                    stroke-linecap="round"
-                    :stroke-dasharray="188.5"
-                    :stroke-dashoffset="188.5 - (188.5 * progressPercentage / 100)"
-                    transform="rotate(-90 35 35)"
-                  />
-                </svg>
-                <div class="progress-text">
-                  <div class="progress-count">{{ getCurrentProgressDisplay() }}/{{ totalSteps }}</div>
-                  <div class="progress-percent">{{ Math.round(progressPercentage) }}%</div>
-                </div>
-              </div>
               
-              <!-- Mobile Progress Circle -->
-              <div class="mobile-progress-circle">
-                <svg width="28" height="28" viewBox="0 0 28 28">
-                  <circle 
-                    cx="14" 
-                    cy="14" 
-                    r="10" 
-                    stroke="#e9ecef"
-                    stroke-width="1.5"
-                    fill="none"
-                  />
-                  <circle 
-                    cx="14" 
-                    cy="14" 
-                    r="10" 
-                    stroke="#74b9ff"
-                    stroke-width="1.5"
-                    fill="none"
-                    stroke-linecap="round"
-                    :stroke-dasharray="62.83"
-                    :stroke-dashoffset="62.83 - (62.83 * progressPercentage / 100)"
-                    transform="rotate(-90 14 14)"
-                  />
-                </svg>
-                <div class="mobile-progress-text">
-                  <div class="mobile-progress-count">{{ getCurrentProgressDisplay() }}/{{ totalSteps }}</div>
-                </div>
-              </div>
             </div>
           </div>
 
           <!-- Survey Configuration Dropdowns -->
           <div class="survey-config-section">
             <div class="config-dropdowns">
-              <select v-model="selectedShift" @change="onShiftChange" class="config-dropdown" :class="{ 'required-field': !selectedShift }" :disabled="loadingShifts">
-                <option value="">Select Shift *</option>
-                <option v-for="shift in shiftOptions" :key="shift.lookupID" :value="shift.lookupID">
-                  {{ shift.descr }}
-                </option>
-              </select>
+              <!-- Custom Dropdown that can be auto-opened -->
+              <div class="custom-dropdown-container">
+                <div 
+                  @click="toggleShiftDropdown" 
+                  class="config-dropdown custom-dropdown" 
+                  :class="{ 'required-field': !selectedShift, 'dropdown-open': showShiftDropdown }"
+                  :disabled="loadingShifts"
+                >
+                  <span>{{ getSelectedShiftText() || 'Select Shift *' }}</span>
+                  <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7 10L12 15L17 10H7Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                
+                <div v-if="showShiftDropdown" class="dropdown-options">
+                  <div 
+                    v-for="shift in shiftOptions" 
+                    :key="shift.lookupID"
+                    @click="selectShift(shift.lookupID, shift.descr)"
+                    class="dropdown-option"
+                  >
+                    {{ shift.descr }}
+                  </div>
+                </div>
+              </div>
               
-              <select v-model="selectedLocation" @change="onDeviceSelection" class="config-dropdown" :class="{ 'required-field': !selectedLocation }" :disabled="loadingDevices">
-                <option value="">{{ loadingDevices ? 'Loading devices...' : 'Select Stations *' }}</option>
-                <option v-for="device in stationDevices" :key="device.stationID" :value="device.codeID">
-                  {{ device.customLabel1 }}
-                </option>
-              </select>
+              <!-- Custom Station Dropdown -->
+              <div class="custom-dropdown-container">
+                <div 
+                  @click="toggleStationDropdown" 
+                  class="config-dropdown custom-dropdown" 
+                  :class="{ 'required-field': !selectedLocation, 'dropdown-open': showStationDropdown }"
+                  :disabled="loadingDevices"
+                >
+                  <span>{{ getSelectedStationText() || 'Select Stations *' }}</span>
+                  <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7 10L12 15L17 10H7Z" fill="currentColor"/>
+                  </svg>
+                </div>
+                
+                <div v-if="showStationDropdown" class="dropdown-options">
+                  <div 
+                    v-for="device in stationDevices" 
+                    :key="device.stationID"
+                    @click="selectStation(device.codeID, device.customLabel1)"
+                    class="dropdown-option"
+                  >
+                    {{ device.customLabel1 }}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -189,7 +170,7 @@
                     </div>
                     
                     <template v-for="answer in currentQuestion.answers">
-                      <div 
+                      <div
                         :key="answer.answerID"
                         class="answer-option"
                         :class="{ 
@@ -281,66 +262,19 @@
           </button>
         </div>
 
-        <!-- Submission Status - Now shows for both landing pages and default results -->
+        <!-- Timer - Show immediately after survey completion -->
         <div class="submission-status">
-          <div v-if="submittingSurvey" class="submission-loading">
-            <div class="loading-spinner"></div>
-            <p>Submitting your responses...</p>
-          </div>
-            <div v-else-if="surveySubmitted" class="submission-success">
-              <!-- <div class="success-icon">✅</div> -->
-              <!-- <p>Your responses have been submitted successfully!</p> -->
-              <div class="circular-timer-container">
-                <div class="circular-timer">
-                  <svg class="timer-svg" viewBox="0 0 100 100">
-                    <!-- Background circle -->
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="45"
-                      fill="none"
-                      stroke="#e9ecef"
-                      stroke-width="8"
-                    />
-                    <!-- Progress circle -->
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="45"
-                      fill="none"
-                      stroke="#74b9ff"
-                      stroke-width="8"
-                      stroke-linecap="round"
-                      :stroke-dasharray="circumference"
-                      :stroke-dashoffset="strokeDashoffset"
-                      transform="rotate(-90 50 50)"
-                      class="progress-circle"
-                    />
-                  </svg>
-                  <div class="timer-content">
-                    <div class="timer-number">{{ countdownTimer }}</div>
-                    <div class="timer-label">seconds</div>
-                  </div>
-                </div>
-                <!-- Flash Message -->
-                <div v-if="showFlashMessage" class="flash-message">
-                  <div class="flash-content" :class="flashMessageType">
-                    <div class="flash-icon">{{ flashMessageType === 'success' ? '✅' : '❌' }}</div>
-                    <div class="flash-text">
-                      <p class="flash-title">{{ flashMessageType === 'success' ? 'Survey Submitted!' : 'Survey Not Submitted!' }}</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Timer Message (Hide when countdown reaches 0) -->
-                <div v-if="countdownTimer > 0" class="timer-message">
-                  <p>Page will auto-reload in {{ countdownTimer }} seconds</p>
-                </div>
+          <div class="circular-timer-container">
+            <div class="circular-timer">
+              <div class="timer-content">
+                <div class="timer-number">{{ countdownTimer }}</div>
+                <div class="timer-label">seconds</div>
               </div>
             </div>
-          <div v-else class="submission-pending">
-            <div class="pending-icon">⏳</div>
-            <p>Preparing to submit your responses...</p>
+            <!-- Timer Message (Hide when countdown reaches 0) -->
+            <div v-if="countdownTimer > 0" class="timer-message">
+              <p>Page will auto-reload in {{ countdownTimer }} seconds</p>
+            </div>
           </div>
         </div>
         
@@ -384,8 +318,12 @@ export default {
       submittingSurvey: false, // Track survey submission status
       surveySubmitted: false, // Track if survey has been submitted
       selectedShift: '', // Track selected shift
+      selectedShiftText: '', // Track selected shift text
       selectedLocation: '', // Track selected location (now device name)
+      selectedStationText: '', // Track selected station text
       stationDevices: [], // Store station devices from API
+      showShiftDropdown: false, // Control custom dropdown visibility
+      showStationDropdown: false, // Control station dropdown visibility
       loadingDevices: false, // Track loading state for devices
       shiftOptions: [], // Store shift options from API
       loadingShifts: false, // Track loading state for shifts
@@ -393,7 +331,7 @@ export default {
       selectedDevice: null, // Store the complete selected device object
       countdownTimer: 20, // Countdown timer starting from 20 seconds
       timerInterval: null, // Store the timer interval reference
-      showFlashMessage: false, // Control flash message visibility
+      // showFlashMessage: false, // Control flash message visibility
       flashMessageTimer: null, // Store flash message timer reference
       flashMessageType: 'success' // 'success' or 'error'
     }
@@ -419,33 +357,7 @@ export default {
              this.surveyData.defaultLandingPageID !== undefined;
     },
     
-    progressPercentage() {
-      if (this.questions.length === 0) return 0;
-      
-      if (this.isComplexQuestionnaire) {
-        // For conditional questionnaires, calculate based on answered questions
-        const totalAccessibleQuestions = this.accessibleQuestions.length;
-        const answeredCount = this.getCurrentProgressDisplay();
-        
-        if (totalAccessibleQuestions === 0) return 0;
-        return Math.min((answeredCount / totalAccessibleQuestions) * 100, 100);
-      } else {
-        // For simple questionnaires, calculate based on answered questions
-        const totalQuestions = this.questions.length;
-        const answeredCount = this.getCurrentProgressDisplay();
-        
-        if (totalQuestions === 0) return 0;
-        return Math.min((answeredCount / totalQuestions) * 100, 100);
-      }
-    },
     
-    totalSteps() {
-      if (this.isComplexQuestionnaire) {
-        return this.accessibleQuestions.length;
-      } else {
-        return this.questions.length;
-      }
-    },
     
     currentQuestion() {
       if (this.isComplexQuestionnaire) {
@@ -499,15 +411,6 @@ export default {
       return this.selectedShift && this.selectedLocation;
     },
     
-    // Circular timer calculations
-    circumference() {
-      return 2 * Math.PI * 45; // radius = 45
-    },
-    
-    strokeDashoffset() {
-      const progress = this.countdownTimer / 20; // 20 seconds total
-      return this.circumference * (1 - progress);
-    }
   },
   
   methods: {
@@ -517,12 +420,12 @@ export default {
       
       // Show success flash message immediately
       this.flashMessageType = 'success';
-      this.showFlashMessage = true;
+      // this.showFlashMessage = true;
       
       // Hide flash message after 5 seconds
-      this.flashMessageTimer = setTimeout(() => {
-        this.showFlashMessage = false;
-      }, 5000);
+      // this.flashMessageTimer = setTimeout(() => {
+      //   this.showFlashMessage = false;
+      // }, 5000);
       
       this.timerInterval = setInterval(() => {
         this.countdownTimer--;
@@ -536,15 +439,15 @@ export default {
     },
     
     // Show error flash message
-    showErrorFlash() {
-      this.flashMessageType = 'error';
-      this.showFlashMessage = true;
+    // showErrorFlash() {
+    //   this.flashMessageType = 'error';
+    //   this.showFlashMessage = true;
       
-      // Hide flash message after 5 seconds
-      this.flashMessageTimer = setTimeout(() => {
-        this.showFlashMessage = false;
-      }, 5000);
-    },
+    //   // Hide flash message after 5 seconds
+    //   this.flashMessageTimer = setTimeout(() => {
+    //     this.showFlashMessage = false;
+    //   }, 5000);
+    // },
     
     stopTimer() {
       if (this.timerInterval) {
@@ -560,33 +463,9 @@ export default {
     resetTimer() {
       this.stopTimer();
       this.countdownTimer = 20;
-      this.showFlashMessage = false;
+      // this.showFlashMessage = false;
     },
     
-    // Get current progress display (only count answered questions)
-    getCurrentProgressDisplay() {
-      if (this.isComplexQuestionnaire) {
-        // Count how many questions have been answered
-        let answeredCount = 0;
-        for (let i = 0; i < this.currentStep; i++) {
-          const question = this.accessibleQuestions[i];
-          if (question && this.selectedAnswers[question.questionID]) {
-            answeredCount++;
-          }
-        }
-        return answeredCount;
-      } else {
-        // Count how many questions have been answered
-        let answeredCount = 0;
-        for (let i = 0; i < this.currentStep; i++) {
-          const question = this.questions[i];
-          if (question && this.selectedAnswers[question.questionID]) {
-            answeredCount++;
-          }
-        }
-        return answeredCount;
-      }
-    },
 
     // Refresh the page
     refreshPage() {
@@ -662,6 +541,9 @@ export default {
         this.shiftOptions = shifts;
         
         console.log('Shift options loaded:', this.shiftOptions);
+        
+        // Auto-open shift dropdown after data is loaded
+        this.autoOpenShiftDropdown();
 
       } catch (error) {
         console.error('Error fetching shift options:', error);
@@ -669,6 +551,71 @@ export default {
       } finally {
         this.loadingShifts = false;
       }
+    },
+    
+    // Auto-open shift dropdown when component loads
+    autoOpenShiftDropdown() {
+      // Wait for DOM to be ready and dropdowns to be loaded
+      this.$nextTick(() => {
+        setTimeout(() => {
+          if (!this.selectedShift && this.shiftOptions.length > 0) {
+            // Open custom dropdown
+            this.showShiftDropdown = true;
+            console.log('Shift dropdown auto-opened');
+          }
+        }, 1000); // 1 second delay to ensure everything is loaded
+      });
+    },
+    
+    // Toggle custom dropdown
+    toggleShiftDropdown() {
+      this.showShiftDropdown = !this.showShiftDropdown;
+    },
+    
+    // Select shift option
+    selectShift(shiftId, shiftText) {
+      this.selectedShift = shiftId;
+      this.selectedShiftText = shiftText;
+      this.showShiftDropdown = false; // Close dropdown after selection
+      this.onShiftChange(); // Call the original change handler
+      
+      // Auto-open stations dropdown after shift selection
+      setTimeout(() => {
+        if (!this.selectedLocation && this.stationDevices.length > 0) {
+          this.showStationDropdown = true;
+          console.log('Stations dropdown auto-opened after shift selection');
+        }
+      }, 300); // Small delay for smooth transition
+    },
+    
+    // Get selected shift text for display
+    getSelectedShiftText() {
+      return this.selectedShiftText;
+    },
+    
+    // Toggle station dropdown
+    toggleStationDropdown() {
+      this.showStationDropdown = !this.showStationDropdown;
+    },
+    
+    // Select station option
+    selectStation(deviceCode, deviceText) {
+      this.selectedLocation = deviceCode;
+      this.selectedStationText = deviceText;
+      this.showStationDropdown = false;
+      
+      // Find the selected device object by codeID
+      this.selectedDevice = this.stationDevices.find(device => 
+        device.codeID === deviceCode
+      );
+      
+      console.log('Selected station:', deviceText, 'Code:', deviceCode);
+      console.log('Selected device:', this.selectedDevice);
+    },
+    
+    // Get selected station text for display
+    getSelectedStationText() {
+      return this.selectedStationText;
     },
     
     // Handle device selection from dropdown
@@ -722,17 +669,20 @@ export default {
         if (matchingDevice) {
           // Auto-select the matching station
           this.selectedLocation = matchingDevice.codeID;
+          this.selectedStationText = matchingDevice.customLabel1;
           this.selectedDevice = matchingDevice;
           console.log('Auto-selected station:', matchingDevice.customLabel1, 'with codeID:', matchingDevice.codeID);
         } else {
           console.log('No matching station found for sID:', stationIdFromURL);
           // Reset to default state when no matching station found
           this.selectedLocation = '';
+          this.selectedStationText = '';
           this.selectedDevice = null;
         }
       } else {
         // No sID parameter present, ensure default state
         this.selectedLocation = '';
+        this.selectedStationText = '';
         this.selectedDevice = null;
         console.log('No sID parameter found, showing default station selection');
       }
@@ -1181,6 +1131,8 @@ export default {
           // No more questions available, show results
           console.log('Reached end of conditional questionnaire - showing results');
           this.showResults = true;
+          // Start timer immediately
+          this.startTimer();
           // Submit survey data when assessment is completed
           if (!this.surveySubmitted) {
             console.log('Calling submitSurveyData from conditional questionnaire');
@@ -1216,6 +1168,8 @@ export default {
           
           console.log('Reached end of simple questionnaire - showing results');
           this.showResults = true;
+          // Start timer immediately
+          this.startTimer();
           // Submit survey data when assessment is completed
           if (!this.surveySubmitted) {
             console.log('Calling submitSurveyData from simple questionnaire');
@@ -1251,8 +1205,16 @@ export default {
     },
     
     getNextButtonText() {
-      // Always show "Continue" for better UX
-      return 'Continue';
+      // Check if this is the last question
+      if (this.isComplexQuestionnaire) {
+        // For complex questionnaires, check if we're at the last accessible question
+        const isLastQuestion = this.currentStep === this.accessibleQuestions.length - 1;
+        return isLastQuestion ? 'Submit Survey' : 'Continue';
+      } else {
+        // For simple questionnaires, check if we're at the last question
+        const isLastQuestion = this.currentStep === this.questions.length - 1;
+        return isLastQuestion ? 'Submit Survey' : 'Continue';
+      }
     },
     
     
@@ -1504,17 +1466,17 @@ export default {
         console.log('Submitting survey data:', payload);
         
         // Submit to original API
-        const response = await fetch('https://demo.galaxycreations.com/gwas/api/Survey/ProcessSurvey', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload)
-        });
+        // const response = await fetch('https://demo.galaxycreations.com/gwas/api/Survey/ProcessSurvey', {
+        //   method: 'POST',
+        //   headers: {
+        //     'Content-Type': 'application/json',
+        //   },
+        //   body: JSON.stringify(payload)
+        // });
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        // if (!response.ok) {
+        //   throw new Error(`HTTP error! status: ${response.status}`);
+        // }
         
         // const result = await response.json();
         // console.log('Survey submission successful:', result);
@@ -1543,7 +1505,7 @@ export default {
         console.error('Error submitting survey data:', error);
         
         // Show error flash message
-        this.showErrorFlash();
+        // this.showErrorFlash();
       } finally {
         this.submittingSurvey = false;
       }
@@ -1563,15 +1525,38 @@ export default {
             // Handle both single and multiple select as arrays
             const answerIdArray = Array.isArray(selectedAnswerIds) ? selectedAnswerIds : [selectedAnswerIds];
             
-            // Create userNavigatedTo object with navigation info (use first selected answer)
+            // Create userNavigatedTo object with navigation info (use answer with highest rank)
             let userNavigatedTo = null;
             if (answerIdArray.length > 0) {
-              const firstSelectedAnswer = question.answers.find(a => a.answerID === answerIdArray[0]);
-              if (firstSelectedAnswer) {
+              // Get all selected answers
+              const selectedAnswers = answerIdArray.map(answerId => 
+                question.answers.find(a => a.answerID === answerId)
+              ).filter(answer => answer !== undefined);
+              
+              if (selectedAnswers.length > 0) {
+                // Find the answer with the highest rank
+                const highestRankAnswer = selectedAnswers.reduce((highest, current) => {
+                  const currentRank = current.rank || 0;
+                  const highestRank = highest.rank || 0;
+                  return currentRank > highestRank ? current : highest;
+                });
+                
+                // Check answer navigation first, but if it's -1 or undefined, fall back to question
+                const answerToLandingPageID = highestRankAnswer.toLandingPageID;
+                const answerToQuestionID = highestRankAnswer.toQuestionID;
+                
+                const finalToLandingPageID = (answerToLandingPageID !== undefined && answerToLandingPageID !== -1) 
+                  ? answerToLandingPageID 
+                  : (question.toLandingPageID !== undefined ? question.toLandingPageID : -1);
+                  
+                const finalToQuestionID = (answerToQuestionID !== undefined && answerToQuestionID !== -1) 
+                  ? answerToQuestionID 
+                  : (question.toQuestionID !== undefined ? question.toQuestionID : -1);
+                
                 userNavigatedTo = {
                   selectedAt: new Date().toISOString(),
-                  toLandingPageID: firstSelectedAnswer.toLandingPageID !== undefined ? firstSelectedAnswer.toLandingPageID : (question.toLandingPageID !== undefined ? question.toLandingPageID : -1),
-                  toQuestionID: firstSelectedAnswer.toQuestionID !== undefined ? firstSelectedAnswer.toQuestionID : (question.toQuestionID !== undefined ? question.toQuestionID : -1)
+                  toLandingPageID: finalToLandingPageID,
+                  toQuestionID: finalToQuestionID
                 };
               }
             }
@@ -1698,10 +1683,10 @@ export default {
       return questionAnalytics;
     },
 
-    // Submit comprehensive analytics data to AWS API Gateway for QuickSight (Questionnaire Level)
+    // Submit comprehensive analytics data to AWS API Gateway for Star Schema Database
     async submitAnalyticsData() {
       try {
-        console.log('Submitting analytics data to AWS API Gateway...');
+        console.log('Submitting analytics data to AWS API Gateway with Star Schema structure...');
         
         const timestamp = new Date().toISOString();
         const submissionDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -1736,7 +1721,6 @@ export default {
           completionRate = (answeredQuestions / totalQuestions) * 100;
           console.log(`Debug - Simple: ${answeredQuestions}/${questionsShownToUser} = ${completionRate}%`);
         }
-        // const averageRank = this.calculateAverageRank();
         
         // Calculate survey score as completion percentage (0-100)
         const surveyScore = Math.round(completionRate);
@@ -1744,9 +1728,6 @@ export default {
         // Calculate actual completion time
         const actualCompletionTimeInSeconds = this.getActualCompletionTimeInSeconds();
         const actualCompletionTimeFormatted = this.getActualCompletionTime();
-        
-        // Determine risk level based on average rank
-
         
         // Prepare question and answer summary data
         const answeredQuestionsList = this.prepareAnsweredQuestionsSummary();
@@ -1756,94 +1737,143 @@ export default {
         const questionAnalytics = this.buildQuestionAnalytics();
         const enhancedQuestionnairePayload = this.buildEnhancedQuestionnaire();
         
-        // Calculate answer distribution
-        // const answerDistribution = this.calculateAnswerDistribution();
-        
-        // Calculate question category distribution
-        
         // Prepare conditional questionnaire metadata
         const conditionalMetadata = this.prepareConditionalMetadata();
         
-        // Create single analytics record for the entire questionnaire
-        const analyticsRecord = {
-          // Submission metadata
-          submissionId: submissionId,
-          timestamp: timestamp,
-          submissionDate: submissionDate,
-          submissionTime: submissionTime,
-          submissionHour: submissionHour,
-          dayOfWeek: dayOfWeek,
-          month: month,
-          year: year,
-          
-          // Survey information
-          surveyId: this.surveyData.surveyID || this.surveyId,
-          surveyName: this.surveyData.surveyName || 'Patient Assessment',
-          AcuitySurvey: this.surveyData.bAcuitySurvey ? true : false,
-          isComplexQuestionnaire: this.isComplexQuestionnaire,
-          
-          // Location and shift data
-          deviceLocation: this.selectedLocation,
-          deviceId: this.selectedDevice ? this.selectedDevice.stationID : null,
-          deviceIP: this.selectedDevice ? this.selectedDevice.customField1 : null,
-          shift: this.getSelectedShiftDescription(),
-          
-          // Survey metrics
-          totalQuestions: totalQuestions, // Total questions in the questionnaire
-          questionsShownToUser: questionsShownToUser, // Questions actually shown to user (for conditional questionnaires)
-          answeredQuestions: answeredQuestions, // Questions actually answered by user
-          completionRate: Math.round(completionRate), // Completion rate based on questions shown to user
-          // averageRank: Math.round(averageRank * 100) / 100,
-          surveyScore: surveyScore,
-          // riskLevel: riskLevel,
-          // riskCategory: riskCategory,
-          
-
-
-          
-          // Time-based analytics
-          timeToComplete: actualCompletionTimeInSeconds, // Actual completion time in seconds
-          timeToCompleteFormatted: actualCompletionTimeFormatted, // Actual completion time formatted (e.g., "1 minute 12 seconds")
-          // estimatedTimeToComplete: this.getEstimatedCompletionTime(), // Removed - using actual time instead
-          questionnaireStartTime: this.questionnaireStartTime ? this.questionnaireStartTime.toISOString() : null,
-          questionnaireEndTime: this.questionnaireEndTime ? this.questionnaireEndTime.toISOString() : null,
-          isWeekend: [0, 6].includes(new Date().getDay()),
-          
-          // Technical metadata
-          userAgent: navigator.userAgent,
-          screenResolution: `${screen.width}x${screen.height}`,
-          deviceType: this.getDeviceType(),
-          
-          // Conditional questionnaire specific fields
-
-          pathIdentifier: conditionalMetadata.pathIdentifier,
-          // conditionalPathDescription: conditionalMetadata.pathDescription,
-          averageQuestionDisplayTime: conditionalMetadata.averageQuestionDisplayTime,
-          
-          // Summary fields for answered questions (JSON format for flexibility)
-          answeredQuestionsData: JSON.stringify(answeredQuestionsList),
-          
-          // Comprehensive questionnaire data for QuickSight analysis
-          questionnairePath: JSON.stringify(questionnairePath), // Q1->Answer->Q2->Answer path
-          questionAnalytics: JSON.stringify(questionAnalytics), // Detailed question-level data
-          enhancedQuestionnaireData: enhancedQuestionnairePayload[0], // Complete questionnaire with user answers (already stringified)
-          
-          // Questionnaire structure data
-          questionnaireStructure: JSON.stringify({
-            survey: this.surveyData,
-            totalQuestions: totalQuestions,
-            questionTypes: this.questions.map(q => q.type),
-            questionRanks: this.questions.map(q => q.rank),
-            hasConditionalLogic: this.isComplexQuestionnaire,
-            landingPagesCount: this.landingPages ? this.landingPages.length : 0,
-            edgesCount: this.edges ? this.edges.length : 0
-          }),
-          
-          // High-level insights
-
+        // STAR SCHEMA DATA MAPPING
+        // Map to your new star schema structure
+        
+        // 1. SURVEY KEY MAPPING (based on survey_id)
+        const surveyKeyMapping = {
+          1: 4,  // PHH Patient Classification
+          2: 3,  // KPC Patient Classification
+          3: 1,  // KPC Stoplight
+          4: 5,  // ICU Unit
+          5: 6,  // Intake
+          6: 2   // Stress First Aid
         };
         
-        console.log('Analytics record for questionnaire:', analyticsRecord);
+        const surveyKey = surveyKeyMapping[this.surveyData.surveyID || this.surveyId] || 1;
+        
+        // 2. DEVICE KEY MAPPING
+        const deviceKey = this.getDeviceKey(this.selectedLocation, this.selectedDevice);
+        
+        // 3. SHIFT KEY MAPPING
+        const shiftKey = this.getShiftKey(this.getSelectedShiftDescription());
+        
+        // 4. TIME KEY MAPPING
+        const timeKey = this.getTimeKey(submissionDate);
+        
+        // 5. CALCULATE QUESTION TYPES DISTRIBUTION
+        const questionTypesDistribution = this.calculateQuestionTypesDistribution();
+        
+        // 6. PREPARE BRIDGE TABLE DATA
+        const bridgeSubmissionQuestions = this.prepareBridgeSubmissionQuestions(submissionId);
+        const bridgeSubmissionAnswers = this.prepareBridgeSubmissionAnswers(submissionId);
+        
+        // Create comprehensive analytics record for Star Schema
+        const analyticsRecord = {
+          // === FACT TABLE DATA (fact_survey_submissions) ===
+          fact_survey_submissions: {
+            submission_id: submissionId,
+            survey_key: surveyKey,
+            device_key: deviceKey,
+            shift_key: shiftKey,
+            time_key: timeKey,
+            total_questions: totalQuestions,
+            questions_shown_to_user: questionsShownToUser,
+            answered_questions: answeredQuestions,
+            single_select_questions_count: questionTypesDistribution.single_select,
+            multiple_select_questions_count: questionTypesDistribution.multiple_select,
+            questions_with_multiple_answers: questionTypesDistribution.multiple_select,
+            questions_with_single_answer: questionTypesDistribution.single_select,
+            unanswered_questions: questionsShownToUser - answeredQuestions,
+            question_types_distribution: questionTypesDistribution,
+            completion_rate: Math.round(completionRate),
+            survey_score: surveyScore,
+            time_to_complete_seconds: actualCompletionTimeInSeconds,
+            time_to_complete_formatted: actualCompletionTimeFormatted,
+            questionnaire_start_time: this.questionnaireStartTime ? this.questionnaireStartTime.toISOString() : null,
+            questionnaire_end_time: this.questionnaireEndTime ? this.questionnaireEndTime.toISOString() : null,
+            answered_questions_data: answeredQuestionsList,
+            questionnaire_path: questionnairePath,
+            created_at: timestamp,
+            updated_at: timestamp
+          },
+          
+          // === BRIDGE TABLE DATA ===
+          bridge_submission_questions: bridgeSubmissionQuestions,
+          bridge_submission_answers: bridgeSubmissionAnswers,
+          
+          // === LEGACY DATA (for backward compatibility) ===
+          legacy_data: {
+            // Submission metadata
+            submissionId: submissionId,
+            timestamp: timestamp,
+            submissionDate: submissionDate,
+            submissionTime: submissionTime,
+            submissionHour: submissionHour,
+            dayOfWeek: dayOfWeek,
+            month: month,
+            year: year,
+            
+            // Survey information
+            surveyId: this.surveyData.surveyID || this.surveyId,
+            surveyName: this.surveyData.surveyName || 'Patient Assessment',
+            AcuitySurvey: this.surveyData.bAcuitySurvey ? true : false,
+            isComplexQuestionnaire: this.isComplexQuestionnaire,
+            
+            // Location and shift data
+            deviceLocation: this.selectedStationText || this.selectedLocation, // Use station name, not code
+            deviceId: this.selectedDevice ? this.selectedDevice.stationID : null,
+            deviceIP: this.selectedDevice ? this.selectedDevice.customField1 : null,
+            shift: this.getSelectedShiftDescription(),
+            
+            // Survey metrics
+            totalQuestions: totalQuestions,
+            questionsShownToUser: questionsShownToUser,
+            answeredQuestions: answeredQuestions,
+            completionRate: Math.round(completionRate),
+            surveyScore: surveyScore,
+            
+            // Time-based analytics
+            timeToComplete: actualCompletionTimeInSeconds,
+            timeToCompleteFormatted: actualCompletionTimeFormatted,
+            questionnaireStartTime: this.questionnaireStartTime ? this.questionnaireStartTime.toISOString() : null,
+            questionnaireEndTime: this.questionnaireEndTime ? this.questionnaireEndTime.toISOString() : null,
+            isWeekend: [0, 6].includes(new Date().getDay()),
+            
+            // Technical metadata
+            userAgent: navigator.userAgent,
+            screenResolution: `${screen.width}x${screen.height}`,
+            deviceType: this.getDeviceType(),
+            
+            // Conditional questionnaire specific fields
+            pathIdentifier: conditionalMetadata.pathIdentifier,
+            averageQuestionDisplayTime: conditionalMetadata.averageQuestionDisplayTime,
+            
+            // Summary fields for answered questions (JSON format for flexibility)
+            answeredQuestionsData: JSON.stringify(answeredQuestionsList),
+            
+            // Comprehensive questionnaire data for QuickSight analysis
+            questionnairePath: JSON.stringify(questionnairePath),
+            questionAnalytics: JSON.stringify(questionAnalytics),
+            enhancedQuestionnaireData: enhancedQuestionnairePayload[0],
+            
+            // Questionnaire structure data
+            questionnaireStructure: JSON.stringify({
+              survey: this.surveyData,
+              totalQuestions: totalQuestions,
+              questionTypes: this.questions.map(q => q.type),
+              questionRanks: this.questions.map(q => q.rank),
+              hasConditionalLogic: this.isComplexQuestionnaire,
+              landingPagesCount: this.landingPages ? this.landingPages.length : 0,
+              edgesCount: this.edges ? this.edges.length : 0
+            })
+          }
+        };
+        
+        console.log('Star Schema analytics record:', analyticsRecord);
         
         // Submit to AWS API Gateway
         const analyticsResponse = await fetch('https://8s5zhkyjbh.execute-api.us-west-2.amazonaws.com/prod/survey-analytics', {
@@ -1856,7 +1886,7 @@ export default {
         });
         
         if (analyticsResponse.ok) {
-          console.log('Analytics data submitted successfully to AWS');
+          console.log('Star Schema analytics data submitted successfully to AWS');
         } else {
           console.warn('Analytics submission failed:', analyticsResponse.status, analyticsResponse.statusText);
           // Don't throw error to avoid breaking the main submission flow
@@ -1866,6 +1896,123 @@ export default {
         console.error('Error submitting analytics data:', error);
         // Don't throw error to avoid breaking the main submission flow
       }
+    },
+
+    // === HELPER METHODS FOR STAR SCHEMA MAPPING ===
+
+    // Get device key based on location and device info
+    getDeviceKey(location) {
+      // You'll need to implement device lookup logic
+      // This could query your dim_devices table or use a mapping
+      const deviceMappings = {
+        'ICU iPad': 1001,
+        'Med/Surg iPad': 1002,
+        'Emergency iPad': 1003,
+        'Surgery iPad': 1004,
+        'Rehabilitation iPad': 1005
+      };
+      
+      return deviceMappings[location] || 1001; // Default to ICU iPad
+    },
+
+    // Get shift key based on shift description
+    getShiftKey(shiftDescription) {
+      const shiftMappings = {
+        'morning': 1,
+        'beginning': 1,
+        'day': 1,
+        'during': 2,
+        'afternoon': 2,
+        'intervention': 3,
+        'evening': 4,
+        'night': 5,
+        'post traumatic event': 5
+      };
+      
+      const shiftKey = shiftMappings[shiftDescription.toLowerCase()];
+      return shiftKey || 1; // Default to beginning shift
+    },
+
+    // Get time key based on submission date
+    getTimeKey(submissionDate) {
+      // You'll need to implement time key lookup logic
+      // This could query your dim_time table or calculate based on date
+      const dateObj = new Date(submissionDate);
+      const dayOfYear = Math.floor((dateObj - new Date(dateObj.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+      
+      // Simple time key calculation (you may want to query dim_time instead)
+      return 200000 + dayOfYear; // Starting from 200000 to avoid conflicts
+    },
+
+    // Calculate question types distribution
+    calculateQuestionTypesDistribution() {
+      const singleSelectCount = this.questions.filter(q => q.type === 1).length;
+      const multipleSelectCount = this.questions.filter(q => q.type === 2).length;
+      
+      return {
+        single_select: singleSelectCount,
+        multiple_select: multipleSelectCount
+      };
+    },
+
+    // Prepare bridge submission questions data
+    prepareBridgeSubmissionQuestions(submissionId) {
+      const bridgeQuestions = [];
+      
+      this.questions.forEach((question, index) => {
+        // You'll need to get the actual question_key from your dim_questions table
+        // For now, we'll use question_id as a placeholder
+        const questionKey = question.questionID || question.id;
+        
+        bridgeQuestions.push({
+          submission_id: submissionId,
+          question_key: questionKey,
+          question_order: index + 1,
+          is_answered: this.selectedAnswers[question.questionID || question.id] ? true : false,
+          time_spent_seconds: this.getQuestionTimeSpent(question.questionID || question.id)
+        });
+      });
+      
+      return bridgeQuestions;
+    },
+
+    // Prepare bridge submission answers data
+    prepareBridgeSubmissionAnswers(submissionId) {
+      const bridgeAnswers = [];
+      
+      Object.entries(this.selectedAnswers).forEach(([questionId, answerData], index) => {
+        // Handle both single and multiple answers
+        const answerIds = Array.isArray(answerData) ? answerData : [answerData];
+        
+        answerIds.forEach(answerId => {
+          // selectedAnswers stores answer IDs as numbers, not objects
+          // So answerId is already the answer_key we need
+          
+          // Find the answer object to get navigation info
+          const question = this.questions.find(q => q.questionID === parseInt(questionId));
+          const answerObject = question ? question.answers.find(a => a.answerID === answerId) : null;
+          
+          bridgeAnswers.push({
+            submission_id: submissionId,
+            question_key: parseInt(questionId),
+            answer_key: answerId, // Use the answer ID directly
+            selection_order: index + 1,
+            was_selected: true,
+            selection_timestamp: new Date().toISOString(),
+            to_question_id: answerObject ? (answerObject.nextQuestionID || null) : null,
+            to_landing_page_id: answerObject ? (answerObject.toLandingPageID || null) : null
+          });
+        });
+      });
+      
+      return bridgeAnswers;
+    },
+
+    // Get time spent on a specific question
+    getQuestionTimeSpent() {
+      // You'll need to implement question timing logic
+      // This could track individual question times
+      return Math.floor(Math.random() * 60) + 10; // Placeholder: 10-70 seconds
     },
 
     // Prepare answered questions summary for questionnaire-level analytics
@@ -2274,17 +2421,10 @@ export default {
     margin-bottom: 4px !important;
   }
   
-  /* Better mobile progress indicator */
-  .mobile-progress-circle {
-    background: rgba(255, 255, 255, 0.9) !important;
-    border-radius: 50% !important;
-    padding: 4px !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-  }
   
   /* Improved mobile header styling */
   .survey-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background: linear-gradient(135deg, #050d9e 0%, #00a0df 100%) !important;
     color: white !important;
     position: relative !important;
   }
@@ -2380,10 +2520,10 @@ export default {
   }
   
   .config-dropdown {
+    width: 100%;
     font-size: 0.7rem;
     padding: 6px 8px;
     min-width: 0;
-    max-width: calc(50% - 3px);
     box-sizing: border-box;
   }
   
@@ -2398,11 +2538,13 @@ export default {
     width: calc(100% - 8px);
     max-width: calc(100% - 8px);
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: visible;
   }
   
   .config-dropdowns {
-    gap: 6px;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
@@ -2427,7 +2569,7 @@ export default {
   max-width: 100%;
   margin: 0;
   padding: 0;
-  background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 25%, #fd79a8 50%, #a29bfe 75%, #6c5ce7 100%);
+  background: linear-gradient(135deg, #00a0df 0%, #1e988a 25%, #a9198d 50%, #050d9e 75%, #f5bd47 100%);
   background-size: 400% 400%;
   animation: gentleGradient 20s ease infinite;
   font-family: 'Inter', 'Segoe UI', sans-serif;
@@ -2614,7 +2756,7 @@ export default {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.4s ease;
-  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  background: linear-gradient(135deg, #00a0df, #050d9e);
   color: white;
   box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
@@ -3020,7 +3162,7 @@ export default {
   right: 8px;
   width: 18px;
   height: 18px;
-  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  background: linear-gradient(135deg, #00a0df, #050d9e);
   color: white;
   border-radius: 50%;
   display: flex;
@@ -3350,7 +3492,7 @@ export default {
 }
 
 .next-cloud {
-  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  background: linear-gradient(135deg, #00a0df, #050d9e);
   color: white;
 }
 
@@ -3484,7 +3626,7 @@ export default {
 }
 
 .restart-button {
-  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  background: linear-gradient(135deg, #00a0df, #050d9e);
   color: white;
 }
 
@@ -3637,7 +3779,7 @@ export default {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.4s ease;
-  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  background: linear-gradient(135deg, #00a0df, #050d9e);
   color: white;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
@@ -3729,7 +3871,7 @@ export default {
     justify-content: center;
     max-width: 100%;
     margin: 0;
-    gap: 15px;
+    gap: 5px;
     flex-wrap: wrap;
   }
   
@@ -3911,11 +4053,6 @@ export default {
     stroke-linecap: round;
   }
   
-  .progress-circle {
-    stroke-linecap: round;
-    transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-    filter: drop-shadow(0 0 8px rgba(116, 185, 255, 0.4));
-  }
   
   .circular-progress-content {
     position: absolute;
@@ -3926,13 +4063,6 @@ export default {
     color: white;
   }
   
-  .progress-percentage {
-    font-size: 1.8rem;
-    font-weight: 600;
-    text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    margin-bottom: 2px;
-    animation: progressPulse 2s ease-in-out infinite;
-  }
   
   .progress-step {
     font-size: 0.9rem;
@@ -4107,7 +4237,7 @@ export default {
   .support-actions {
     flex-direction: row;
     justify-content: center;
-    gap: 15px;
+    gap: 5px;
     flex-wrap: wrap;
   }
   
@@ -4428,11 +4558,11 @@ export default {
   }
   
   .config-dropdown {
+    width: 100% !important;
     padding: 7px 9px !important;
     font-size: 0.78rem !important;
     min-height: 38px !important;
     min-width: 0 !important;
-    max-width: calc(50% - 2.5px) !important;
     box-sizing: border-box !important;
   }
   
@@ -4747,11 +4877,11 @@ export default {
   }
   
   .config-dropdown {
+    width: 100% !important;
     padding: 6px 8px !important;
     font-size: 0.75rem !important;
     min-height: 36px !important;
     min-width: 0 !important;
-    max-width: calc(50% - 2px) !important;
     box-sizing: border-box !important;
   }
   
@@ -5245,13 +5375,17 @@ export default {
   background: #f8f9fa;
   border-bottom: 1px solid #e9ecef;
   flex-shrink: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 100;
 }
 
 .survey-config-section .config-dropdowns {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
   margin: 12px 0;
+  width: 100%;
 }
 
 .survey-config-section .config-dropdown {
@@ -5261,7 +5395,7 @@ export default {
   background: white;
   font-size: 0.9rem;
   color: #495057;
-  min-width: 160px;
+  flex: 1;
   transition: all 0.3s ease;
 }
 
@@ -5276,7 +5410,7 @@ export default {
 }
 
 .survey-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background: linear-gradient(135deg, #050d9e 0%, #00a0df 50%, #a9198d 100%);
   padding: 18px 25px;
   color: white;
   position: relative;
@@ -5293,8 +5427,20 @@ export default {
   flex-shrink: 0;
 }
 
-.sfa-logo, .nj-logo {
+.nj-logo-section {
+  margin-left: auto; /* Ensure it stays on the right */
+  justify-content: flex-end;
+}
+
+.sfa-logo {
   height: 40px;
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.nj-logo {
+  height: 60px; /* Made larger */
   width: auto;
   object-fit: contain;
   transition: transform 0.3s ease;
@@ -5306,14 +5452,20 @@ export default {
 
 /* Responsive logo adjustments */
 @media (max-width: 768px) {
-  .sfa-logo, .nj-logo {
+  .sfa-logo {
     height: 30px;
+  }
+  .nj-logo {
+    height: 45px; /* Larger on mobile too */
   }
 }
 
 @media (max-width: 480px) {
-  .sfa-logo, .nj-logo {
+  .sfa-logo {
     height: 25px;
+  }
+  .nj-logo {
+    height: 35px; /* Larger on small mobile too */
   }
 }
 
@@ -5427,101 +5579,9 @@ export default {
   color: rgba(255, 255, 255, 0.95);
 }
 
-/* Simple Progress Chip */
-.simple-progress-circle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 70px;
-  height: 70px;
-  margin-left: 15px;
-  flex-shrink: 0;
-}
 
-.simple-progress-circle svg {
-  position: absolute;
-  top: 0;
-  left: 0;
-}
 
-.simple-progress-circle .progress-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  z-index: 2;
-}
 
-.simple-progress-circle .progress-count {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #2d3436;
-  line-height: 1;
-  margin-bottom: 1px;
-}
-
-.simple-progress-circle .progress-percent {
-  font-size: 0.6rem;
-  color: #636e72;
-  font-weight: 500;
-  line-height: 1;
-}
-
-/* Desktop Progress Circle - Show only on desktop */
-@media (min-width: 1025px) {
-  .desktop-progress {
-    display: block;
-  }
-  .mobile-progress-circle {
-    display: none !important;
-  }
-}
-
-/* Mobile Progress Circle - Show only on mobile/tablet */
-@media (max-width: 1024px) {
-  .desktop-progress {
-    display: none !important;
-  }
-  .mobile-progress-circle {
-    display: block;
-  }
-}
-
-/* Mobile Progress Circle Styles */
-.mobile-progress-circle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin-left: 4px;
-  flex-shrink: 0;
-}
-
-.mobile-progress-circle svg {
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-.mobile-progress-circle .mobile-progress-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  z-index: 2;
-}
-
-.mobile-progress-circle .mobile-progress-count {
-  font-size: 0.35rem;
-  font-weight: 600;
-  color: #2d3436;
-  line-height: 1;
-}
 
 /* Enhanced Question Sanctuary */
 .enhanced-question-card .question-sanctuary {
@@ -5602,8 +5662,8 @@ export default {
 
 /* Submission Status Styles */
 .submission-status {
-  margin: 25px 0;
-  padding: 20px;
+  margin: 5px 0;
+  padding: 5px;
   border-radius: 15px;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
@@ -5616,7 +5676,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 15px;
+  gap: 5px;
   text-align: center;
 }
 
@@ -5650,17 +5710,17 @@ export default {
 
 /* Circular Timer Styles */
 .circular-timer-container {
-  margin-top: 25px;
+  margin-top: 5px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 15px;
+  gap: 5px;
 }
 
 /* Results Top Actions - Take Assessment Again Button */
 .results-top-actions {
-  margin: 20px 0;
+  margin: 5px 0;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -5733,7 +5793,7 @@ export default {
 }
 
 .flash-content.success {
-  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  background: linear-gradient(135deg, #00a0df, #050d9e);
   box-shadow: 0 4px 20px rgba(116, 185, 255, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -5773,7 +5833,7 @@ export default {
 }
 
 .timer-message {
-  margin-top: 10px;
+  margin-top: 5px;
   color: #636e72;
   font-size: 0.9rem;
 }
@@ -5797,7 +5857,7 @@ export default {
 }
 
 .flash-content.success {
-  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  background: linear-gradient(135deg, #00a0df, #050d9e);
   box-shadow: 0 4px 20px rgba(116, 185, 255, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
@@ -5876,7 +5936,7 @@ export default {
 
 /* Timer Message Styles */
 .timer-message {
-  margin-top: 15px;
+  margin-top: 5px;
   text-align: center;
 }
 
@@ -5936,11 +5996,9 @@ export default {
 /* Survey Configuration Dropdowns */
 
 .config-dropdowns {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-  flex-wrap: wrap;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -5948,9 +6006,7 @@ export default {
 
 /* Basic dropdown styles - will be overridden by media queries */
 .config-dropdown {
-  flex: 1;
   min-width: 0;
-  max-width: calc(50% - 7.5px);
   background: rgba(255, 255, 255, 0.9);
   border: 2px solid rgba(45, 52, 54, 0.2);
   border-radius: 10px;
@@ -6052,6 +6108,74 @@ export default {
   transition-property: background, border-color, transform, box-shadow, color !important;
 }
 
+/* Custom dropdown styles */
+.custom-dropdown-container {
+  position: relative;
+  min-width: 0;
+  z-index: 1000;
+}
+
+
+.regular-select-container {
+  min-width: 0;
+}
+
+.custom-dropdown {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  width: 100%;
+}
+
+.custom-dropdown .dropdown-arrow {
+  transition: transform 0.3s ease;
+  width: 16px;
+  height: 16px;
+  color: #636e72;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+}
+
+.custom-dropdown.dropdown-open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.custom-dropdown:hover .dropdown-arrow {
+  color: #4a5568;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+}
+
+.dropdown-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background: white;
+  border: 2px solid #e9ecef;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 99999 !important;
+  max-height: 200px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.dropdown-option {
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid #f8f9fa;
+}
+
+.dropdown-option:hover {
+  background-color: #f8f9fa;
+}
+
+.dropdown-option:last-child {
+  border-bottom: none;
+}
+
 /* Mobile First - Ensure row layout on all mobile devices */
 @media (max-width: 1199px) {
   .survey-config-section {
@@ -6062,18 +6186,18 @@ export default {
   }
   
   .config-dropdowns {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    gap: 6px !important;
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: center !important;
     margin: 10px 0 !important;
   }
   
   .config-dropdown {
     flex: 1 !important;
+    width: 100% !important;
     padding: 8px 10px !important;
     font-size: 0.8rem !important;
     border-radius: 8px !important;
@@ -6108,18 +6232,15 @@ export default {
   }
   
   .config-dropdowns {
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 8px;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: nowrap !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
     margin: 8px 0 !important;
   }
   
   .config-dropdown {
     flex: 1 !important;
-    max-width: 48% !important;
+    width: 100% !important;
     padding: 6px 8px;
     font-size: 0.75rem;
   }
@@ -6132,17 +6253,15 @@ export default {
   }
   
   .config-dropdowns {
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 6px;
-    justify-content: space-between;
-    flex-wrap: nowrap !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
     margin: 6px 0 !important;
   }
   
   .config-dropdown {
     flex: 1 !important;
-    max-width: 48% !important;
+    width: 100% !important;
     padding: 5px 6px;
     font-size: 0.7rem;
   }
@@ -6155,18 +6274,15 @@ export default {
   }
   
   .config-dropdowns {
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 4px;
-    justify-content: space-between;
-    flex-wrap: nowrap !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
     margin: 5px 0 !important;
   }
   
   .dropdown-group {
-    width: 48% !important;
-    max-width: 48% !important;
     flex: 1 !important;
+    width: 100% !important;
     min-width: 0 !important;
   }
   
